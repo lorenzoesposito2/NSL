@@ -72,7 +72,7 @@ public: // Function declarations
   int get_nsteps();           // Get the number of steps in each block
   void initialize(bool seed_out);          // Initialize system properties
   void initialize_properties(string path); // Initialize properties for measurement
-  void finalize();            // Finalize system and clean up
+  void finalize(string path);            // Finalize system and clean up
   void write_configuration(); // Write final system configuration to XYZ file
   void write_velocities(); // Write final particle velocities to file
   void write_XYZ(int nconf);  // Write system configuration in XYZ format on the fly
@@ -94,7 +94,7 @@ public: // Function declarations
   double Boltzmann(int i, bool xnew); // Calculate Boltzmann factor for Metropolis acceptance
   void set_temp(double temp); // Set temperature
   int get_sim_type(); // Set simulation type
-  void equilibration(string path, int block_eq); // Perform equilibration
+  bool get_restart(); // Get restart flag
   int get_nattempts(); // Get number of attempted moves
   int get_naccepted(); // Get number of accepted moves
 };

@@ -281,49 +281,9 @@ void System :: initialize_velocities(){
       _particle(i).setpositold(1, yold); 
       _particle(i).setpositold(2, zold); 
     }
-  } else if(_restart ){
+  } else if(_restart and _sim_type == 0 ){
     ifstream cinf;
-    cinf.open("../OUTPUT/CONFIG/config.xyz");
-    cout << "Restarting simulation: Reading configuration from file config.xyz" << endl;
-    if(cinf.is_open()){
-      string comment;
-      string particle;
-      int ncoord;
-      cinf >> ncoord;
-      if (ncoord != _npart){
-        cerr << "PROBLEM: conflicting number of coordinates in input.dat & config.xyz not match!" << endl;
-        exit(EXIT_FAILURE);
-      }
-      cinf >> comment;
-      double x,y,z;
-      for(int i=0; i<_npart; i++){
-        cinf >> particle >> x >> y >> z; // units of coordinates in conf.xyz is _side
-        _particle(i).setpositold(0, this->pbc(_side(0)*x, 0));
-        _particle(i).setpositold(1, this->pbc(_side(1)*y, 1));
-        _particle(i).setpositold(2, this->pbc(_side(2)*z, 2));
-      }
-    } else cerr << "PROBLEM: Unable to open INPUT file config.xyz"<< endl;
-    cinf.close();
-    cinf.open("../OUTPUT/CONFIG/conf-1.xyz");
-    if(cinf.is_open()){
-      string comment;
-      string particle;
-      int ncoord;
-      cinf >> ncoord;
-      if (ncoord != _npart){
-        cerr << "PROBLEM: conflicting number of coordinates in input.dat & conf-1.xyz not match!" << endl;
-        exit(EXIT_FAILURE);
-      }
-      cinf >> comment;
-      for(int i=0; i<_npart; i++){
-        cinf >> particle >> xold >> yold >> zold; // units of coordinates in conf.xyz is _side
-        _particle(i).setpositold(0, this->pbc(_side(0)*xold, 0));
-        _particle(i).setpositold(1, this->pbc(_side(1)*yold, 1));
-        _particle(i).setpositold(2, this->pbc(_side(2)*zold, 2));
-      }
-    } else cerr << "PROBLEM: Unable to open INPUT file conf-1.xyz"<< endl;
-    cinf.close();
-    // initialize velocities from file ve
+    // initialize velocities from file velocities_.xyz
     cout << "Restarting simulation: Reading velocities from file velocities_.xyz" << endl;
     cinf.open("../OUTPUT/CONFIG/velocities_.xyz");
     if(cinf.is_open()){
@@ -339,9 +299,9 @@ void System :: initialize_velocities(){
       double vx,vy,vz;
       for(int i=0; i<_npart; i++){
         cinf >> particle >> vx >> vy >> vz; // units of coordinates in conf.xyz is _side
-        _particle(i).setvelocity(0, this->pbc(_side(0)*vx, 0));
-        _particle(i).setvelocity(1, this->pbc(_side(1)*vy, 1));
-        _particle(i).setvelocity(2, this->pbc(_side(2)*vz, 2));
+        _particle(i).setvelocity(0, vx);
+        _particle(i).setvelocity(1, vy);
+        _particle(i).setvelocity(2, vz);
       }
     } else cerr << "PROBLEM: Unable to open INPUT file velocities_.xyz"<< endl;
   } else {
@@ -403,7 +363,7 @@ void System :: initialize_properties(string path){ // Initialize data members us
   ifstream input("../INPUT/properties.dat");
   if (input.is_open()){
     std::ostringstream temp_stream;
-    temp_stream.precision(1); // 1 decimal place
+    temp_stream.precision(2); // 1 decimal place
     temp_stream << std::fixed << _temp;
     string temp_str = temp_stream.str();
     while ( !input.eof() ){
@@ -443,7 +403,7 @@ void System :: initialize_properties(string path){ // Initialize data members us
         index_property++;
       } else if( property == "PRESSURE" ){
         ofstream coutpr(path + "pressure_" + temp_str + ".dat");
-        coutpr << "#     BLOCK:   ACTUAL_P:     P_AVE:       ERROR:" << endl;
+        coutpr << "#BLOCK:   ACTUAL_P:     P_AVE:       ERROR:" << endl;
         coutpr.close();
         _nprop++;
         _measure_pressure = true;
@@ -535,23 +495,22 @@ void System:: reset_properties(){ // Reset properties to zero
   return;
 }
 
-void System :: finalize(){
+void System :: finalize(string path){
   if (_measure_gofr) {
-    ofstream coutf("OUTPUT/gofr_final.dat");
+    ofstream coutf(path + "gofr_final.dat");
+    coutf << "#DISTANCE:     AVE_GOFR:        ERROR:" << endl;
     for (int i = 0; i < _n_bins; i++) {
-        double r = (i + 0.5) * _bin_size; // Raggio medio del guscio
-        double shell_volume = (4.0 / 3.0) * M_PI * (pow((i + 1) * _bin_size, 3) - pow(i * _bin_size, 3)); // Volume del guscio
-        double norm = shell_volume * _rho * double(_npart); // Normalizzazione
+      double r = (i + 0.5) * _bin_size; 
+      double sum_average = _global_av(_index_gofr + i);
+      double sum_ave2 = _global_av2(_index_gofr + i);
 
-        double sum_average = _global_av(_index_gofr + i);
-        double sum_ave2 = _global_av2(_index_gofr + i);
-
-        coutf << setw(12) << r
-              << setw(12) << sum_average / (double(_nblocks) * norm) // Media normalizzata
-              << setw(12) << this->error(sum_average, sum_ave2, _nblocks) / norm << endl; // Errore normalizzato
+      coutf << setw(12) << r
+            << setw(12) << sum_average / (double(_nblocks)) 
+            << setw(12) << this->error(sum_average, sum_ave2, _nblocks) << endl;
     }
     coutf.close();
   }
+  // write the final configuration and velocities
   this->write_configuration();
   this->write_velocities();
   _rnd.SaveSeed();
@@ -640,7 +599,8 @@ void System :: write_XYZ(int nconf){
 void System :: read_configuration(){
   ifstream cinf;
   // read input fcc
-  (_sim_type <= 1) ? cinf.open("../INPUT/CONFIG/config.fcc") : cinf.open("../INPUT/CONFIG/config.ising");
+  if(_sim_type <= 1 and !_restart) {
+  cinf.open("../INPUT/CONFIG/config.fcc");
   if(cinf.is_open()){
     string comment;
     string particle;
@@ -653,7 +613,6 @@ void System :: read_configuration(){
       exit(EXIT_FAILURE);
     }
     cinf >> comment;
-    if(_sim_type <= 1){
     for(int i=0; i<_npart; i++){
       cinf >> particle >> x >> y >> z; // units of coordinates in conf.xyz is _side
       _particle(i).setposition(0, this->pbc(_side(0)*x, 0));
@@ -661,18 +620,77 @@ void System :: read_configuration(){
       _particle(i).setposition(2, this->pbc(_side(2)*z, 2));
       _particle(i).acceptmove(); // _x_old = _x_new
     }
-    }
-  } else cerr << "PROBLEM: Unable to open INPUT file config.xyz"<< endl;
-  cinf.close();
-  if(_restart and _sim_type > 1){
-    int spin;
-    cinf.open("../INPUT/CONFIG/config.spin");
-    for(int i=0; i<_npart; i++){
-      cinf >> spin;
-      _particle(i).setspin(spin);
-    }
+  } else cerr << "PROBLEM: Unable to open INPUT file config.fcc"<< endl;
+  }
+  
+  // restart simulation type 0 or 1
+  if(_sim_type <= 1 and _restart){
+    cinf.open("../OUTPUT/CONFIG/config.xyz");
+    cout << "Restarting simulation: Reading configuration from file config.xyz" << endl;
+    if(cinf.is_open()){
+      string comment;
+      string particle;
+      int ncoord;
+      cinf >> ncoord;
+      if (ncoord != _npart){
+        cerr << "PROBLEM: conflicting number of coordinates in input.dat & config.xyz not match!" << endl;
+        exit(EXIT_FAILURE);
+      }
+      cinf >> comment;
+      double x,y,z;
+      for(int i=0; i<_npart; i++){
+        cinf >> particle >> x >> y >> z; // units of coordinates in conf.xyz is _side
+        _particle(i).setposition(0, this->pbc(_side(0)*x, 0));
+        _particle(i).setposition(1, this->pbc(_side(1)*y, 1));
+        _particle(i).setposition(2, this->pbc(_side(2)*z, 2));
+      }
+    } else cerr << "PROBLEM: Unable to open INPUT file config.xyz"<< endl;
+    cinf.close();
+    cinf.open("../OUTPUT/CONFIG/conf-1.xyz");
+    if(cinf.is_open()){
+      string comment;
+      string particle;
+      int ncoord;
+      cinf >> ncoord;
+      if (ncoord != _npart){
+        cerr << "PROBLEM: conflicting number of coordinates in input.dat & conf-1.xyz not match!" << endl;
+        exit(EXIT_FAILURE);
+      }
+      cinf >> comment;
+      double xold,yold,zold;
+      for(int i=0; i<_npart; i++){
+        cinf >> particle >> xold >> yold >> zold; // units of coordinates in conf.xyz is _side
+        _particle(i).setpositold(0, this->pbc(_side(0)*xold, 0));
+        _particle(i).setpositold(1, this->pbc(_side(1)*yold, 1));
+        _particle(i).setpositold(2, this->pbc(_side(2)*zold, 2));
+      }
+    } else cerr << "PROBLEM: Unable to open INPUT file conf-1.xyz"<< endl;
     cinf.close();
   }
+  // read input spin
+  if(_sim_type > 1 and !_restart){
+    cinf.open("../INPUT/CONFIG/config.spin");
+    if(cinf.is_open()){
+      int spin;
+      for(int i=0; i<_npart; i++){
+        cinf >> spin;
+        _particle(i).setspin(spin);
+      }
+    } else cerr << "PROBLEM: Unable to open INPUT file config.spin"<< endl;
+    cinf.close();
+  }
+  // restart simulation type 2 or 3
+  if(_restart and _sim_type > 1){
+    if(cinf.is_open()){
+      cinf.open("../OUTPUT/CONFIG/config.spin");
+      int spin;
+      for(int i=0; i<_npart; i++){
+        cinf >> spin;
+        _particle(i).setspin(spin);
+      }
+    } else cerr << "PROBLEM: Unable to open INPUT file config.spin"<< endl;
+    cinf.close();
+  } 
   return;
 }
 
@@ -708,7 +726,7 @@ void System :: measure(){ // Measure properties
         dr = sqrt( dot(distance,distance) );
         // GOFR ... TO BE FIXED IN EXERCISE 7
         if(_measure_gofr){
-          bin = int(dr/_bin_size); //bin index corresponding to distance dr
+          bin = int(dr/_bin_size); //bin index corresponding to distance r
           if(bin < _n_bins) _measurement(_index_gofr + bin) += 2.0; // factor 2 for symmetry
         }
         if(dr < _r_cut){
@@ -758,7 +776,7 @@ void System :: measure(){ // Measure properties
     _measurement(_index_temp) = (2.0/3.0) * kenergy_temp;
   }
   // PRESSURE //////////////////////////////////////////////////////////////////
-  if (_measure_pressure) _measurement[_index_pressure] = _rho * (2.0/3.0) * kenergy_temp + (_ptail*_npart + 48.0*virial/3.0)/_volume;
+  if (_measure_pressure) _measurement[_index_pressure] = _rho * (2.0/3.0) * kenergy_temp + (_ptail*_npart + 48.0*virial/3.0)/(_volume); 
   // MAGNETIZATION /////////////////////////////////////////////////////////////
   // TO BE FIXED IN EXERCISE 6
   if(_measure_magnet or _measure_chi){
@@ -768,7 +786,6 @@ void System :: measure(){ // Measure properties
     if (_measure_magnet) _measurement(_index_magnet) = magnetization;
     
   }
-  
   // SPECIFIC HEAT /////////////////////////////////////////////////////////////
   // TO BE FIXED IN EXERCISE 6
   if (_measure_cv){
@@ -791,7 +808,7 @@ void System :: averages(int blk, string path){
 
   ofstream coutf;
   ostringstream temp_stream;
-  temp_stream.precision(1); 
+  temp_stream.precision(2); 
   temp_stream << fixed << _temp;
 
   double average, sum_average, sum_ave2;
@@ -802,16 +819,16 @@ void System :: averages(int blk, string path){
     _block_av(_index_cv) *= _beta * _beta;
   }
 
-  _average = _block_av / double(_nsteps);
-
   if (_measure_gofr) {
     for (int i = 0; i < _n_bins; i++) {
-        double r = (i + 0.5) * _bin_size; 
-        double shell_volume = (4.0 / 3.0) * M_PI * (pow((i + 1) * _bin_size, 3) - pow(i * _bin_size, 3)); 
-        double norm = shell_volume * _rho * double(_npart); 
-        _average(_index_gofr + i) /= norm; 
+      //double r = (i + 0.5) * _bin_size; 
+      double shell_volume = (4.0 / 3.0) * M_PI * (pow(static_cast<double>(i + 1) * _bin_size, 3) - pow(static_cast<double>(i) * _bin_size, 3)); 
+      double norm = shell_volume * _rho * double(_npart); 
+      _block_av(_index_gofr + i) /= norm; 
     }
   }
+
+  _average = _block_av / double(_nsteps);
 
   if(_measure_magnet){
     _average(_index_magnet) /= double(_npart);
@@ -937,29 +954,28 @@ void System :: averages(int blk, string path){
   if (_measure_gofr) {
     ofstream coutf(path + "/gofr_" + temp_stream.str() + ".dat", ios::app);
     for (int i = 0; i < _n_bins; i++) {
-        double r = (i + 0.5) * _bin_size; // Raggio medio del guscio
-        double shell_volume = (4.0 / 3.0) * M_PI * (pow((i + 1) * _bin_size, 3) - pow(i * _bin_size, 3)); // Volume del guscio
-        double norm = shell_volume * _rho * double(_npart); // Normalizzazione
-
+        double r = (i + 0.5) * _bin_size;
         double average = _average(_index_gofr + i);
         double sum_average = _global_av(_index_gofr + i);
         double sum_ave2 = _global_av2(_index_gofr + i);
 
         coutf << setw(12) << r
-              << setw(12) << sum_average / (double(blk) * norm) // Media normalizzata
-              << setw(12) << this->error(sum_average, sum_ave2, blk) / norm << endl; // Errore normalizzato
+              << setw(12) << sum_average / double(blk) 
+              << setw(12) << this->error(sum_average, sum_ave2, blk)  << endl; 
     }
     coutf.close();
   }
 
   
   double fraction;
-  coutf.open(path + "/acceptance_" + temp_stream.str() + ".dat", ios::app);
-  if(_nattempts > 0) fraction = double(_naccepted)/double(_nattempts);
-  else fraction = 0.0; 
-  coutf << setw(12) << blk << setw(12) << fraction << endl;
-  coutf.close();
-  
+
+  if(_sim_type > 0){
+    coutf.open(path + "/acceptance_" + temp_stream.str() + ".dat", ios::app);
+    if(_nattempts > 0) fraction = double(_naccepted)/double(_nattempts);
+    else fraction = 0.0; 
+    coutf << setw(12) << blk << setw(12) << fraction << endl;
+    coutf.close();
+  }
   return;
 }
 
@@ -1003,15 +1019,8 @@ int System :: get_nattempts(){
   return _nattempts;
 }
 
-void System :: equilibration(string path, int block_eq){
-  cout << "System equilibration started" << endl;
-  for(int i=0; i<block_eq; i++){
-    this->step();
-    this->measure();
-    this->averages(i+1, path);
-    this->block_reset(i+1);
-  }
-  cout << "System equilibration completed" << endl;
+bool System :: get_restart(){
+  return _restart;
 }
 
 
