@@ -369,6 +369,10 @@ void System :: initialize_properties(string path){ // Initialize data members us
     while ( !input.eof() ){
       input >> property;
       if( property == "POTENTIAL_ENERGY" ){
+        if(_sim_type > 1){
+          cerr << "ERROR: POTENTIAL ENERGY CALCULATION IS NOT APPLICABLE TO THE ISING MODEL SIMULATION." << endl;
+          exit(EXIT_FAILURE);
+        }
         ofstream coutp(path + "potential_energy_" + temp_str + ".dat");
         coutp << "#BLOCK:  ACTUAL_PE:     PE_AVE:      ERROR:" << endl;
         coutp.close();
@@ -378,6 +382,10 @@ void System :: initialize_properties(string path){ // Initialize data members us
         index_property++;
         _vtail = 8. * M_PI * _rho * (1 / (9. * pow(_r_cut, 9)) - 1 / (3 * pow(_r_cut, 3))); // tail correction for potential energy
       } else if( property == "KINETIC_ENERGY" ){
+        if(_sim_type > 1){
+          cerr << "ERROR: KINETIC ENERGY CALCULATION IS NOT APPLICABLE TO THE ISING MODEL SIMULATION." << endl;
+          exit(EXIT_FAILURE);
+        }
         ofstream coutk(path + "kinetic_energy_" + temp_str + ".dat");
         coutk << "#BLOCK:   ACTUAL_KE:    KE_AVE:      ERROR:" << endl;
         coutk.close();
@@ -394,6 +402,10 @@ void System :: initialize_properties(string path){ // Initialize data members us
         _index_tenergy = index_property;
         index_property++;
       } else if( property == "TEMPERATURE" ){
+        if(_sim_type > 1){
+          cerr << "ERROR: TEMPERATURE CALCULATION IS NOT APPLICABLE TO THE ISING MODEL SIMULATION." << endl;
+          exit(EXIT_FAILURE);
+        }
         ofstream coutte(path + "temperature_" + temp_str + ".dat");
         coutte << "#BLOCK:   ACTUAL_T:     T_AVE:       ERROR:" << endl;
         coutte.close();
@@ -402,6 +414,10 @@ void System :: initialize_properties(string path){ // Initialize data members us
         _index_temp = index_property;
         index_property++;
       } else if( property == "PRESSURE" ){
+        if(_sim_type > 1){
+          cerr << "ERROR: PRESSURE CALCULATION IS NOT APPLICABLE TO THE ISING MODEL SIMULATION." << endl;
+          exit(EXIT_FAILURE);
+        }
         ofstream coutpr(path + "pressure_" + temp_str + ".dat");
         coutpr << "#BLOCK:   ACTUAL_P:     P_AVE:       ERROR:" << endl;
         coutpr.close();
@@ -411,6 +427,10 @@ void System :: initialize_properties(string path){ // Initialize data members us
         index_property++;
         _ptail = 32. * M_PI * _rho * (1 / (9 * pow(_r_cut, 9)) - 1 / (6 * pow(_r_cut, 3))); // tail correction for pressure
       } else if( property == "GOFR" ){
+        if(_sim_type > 1){
+          cerr << "ERROR: RADIAL DISTRIBUTION FUNCTION CALCULATION IS NOT APPLICABLE TO THE ISING MODEL SIMULATION." << endl;
+          exit(EXIT_FAILURE);
+        }
         ofstream coutgr(path + "gofr_" + temp_str + ".dat");
         coutgr << "# DISTANCE:     AVE_GOFR:        ERROR:" << endl;
         coutgr.close();
@@ -422,7 +442,7 @@ void System :: initialize_properties(string path){ // Initialize data members us
         index_property+= _n_bins;
       } else if( property == "POFV" ){
         if(_sim_type > 0){
-          cerr << "PROBLEM: DOES NOT MAKE SENSE COMPUTING POFV FOR THIS KIND OF SIMULATION" << endl;
+          cerr << "ERROR: VELOCITY MODULUS DISTRIBUTION FUNCTION CALCULATION IS NOT APPLICABLE TO THIS SIMULATION TYPE" << endl;
           exit(EXIT_FAILURE);
         }
         ofstream coutpv(path + "pofv_" + temp_str + ".dat");
@@ -435,6 +455,10 @@ void System :: initialize_properties(string path){ // Initialize data members us
         _index_pofv = index_property;
         index_property += _n_bins_v;
       } else if( property == "MAGNETIZATION" ){
+        if(_sim_type < 2){
+          cerr << "ERROR: MAGNETIZATION CALCULATION IS NOT APPLICABLE TO LJ SIMULATION" << endl;
+          exit(EXIT_FAILURE);
+        }
         ofstream coutpr(path + "magnetization_" + temp_str + ".dat");
         coutpr << "#BLOCK:   ACTUAL_M:     M_AVE:       ERROR:" << endl;
         coutpr.close();
@@ -451,6 +475,10 @@ void System :: initialize_properties(string path){ // Initialize data members us
         _index_cv = index_property;
         index_property++;
       } else if( property == "SUSCEPTIBILITY" ){
+        if(_sim_type < 2){
+          cerr << "ERROR: SUSCEPTIBILITY CALCULATION IS NOT APPLICABLE TO LJ SIMULATION" << endl;
+          exit(EXIT_FAILURE);
+        }
         ofstream coutpr(path + "susceptibility_" + temp_str + ".dat");
         coutpr << "#BLOCK:   ACTUAL_X:     X_AVE:       ERROR:" << endl;
         coutpr.close();
@@ -747,12 +775,16 @@ void System :: measure(){ // Measure properties
     }
   }
   // POTENTIAL ENERGY //////////////////////////////////////////////////////////
-  if (_measure_penergy or _measure_tenergy or _measure_cv){
+  if ((_measure_penergy or _measure_tenergy) and _sim_type < 2){ // if i want to evaluate total energy for LJ i need penergy
+  //if (_measure_penergy){ come il prof
+  //if (_measure_penergy or _measure_tenergy or _measure_cv){
     penergy_temp = _vtail + 4.0 * penergy_temp / double(_npart);
     if (_measure_penergy) _measurement(_index_penergy) = penergy_temp;
   }
   // KINETIC ENERGY ////////////////////////////////////////////////////////////
-  if (_measure_kenergy or _measure_tenergy or _measure_temp or _measure_pressure or _measure_cv){
+  //if ((_measure_kenergy or _measure_tenergy or _measure_temp or _measure_pressure) and _sim_type < 2){
+  if (_measure_kenergy){ //come il prof
+  //if (_measure_kenergy or _measure_tenergy or _measure_temp or _measure_pressure or _measure_cv){
     for (int i=0; i<_npart; i++) kenergy_temp += 0.5 * dot( _particle(i).getvelocity() , _particle(i).getvelocity() ); 
     kenergy_temp /= double(_npart);
     if (_measure_kenergy) _measurement(_index_kenergy) = kenergy_temp;
@@ -772,11 +804,12 @@ void System :: measure(){ // Measure properties
     if(_measure_tenergy) _measurement(_index_tenergy) = tenergy_temp;
   }
   // TEMPERATURE ///////////////////////////////////////////////////////////////
-  if (_measure_temp or _measure_kenergy){
+  if (_measure_temp){ // to compute temperature i need kenergy, NVE will give T, NVT 0
+  //if (_measure_temp or _measure_kenergy){
     _measurement(_index_temp) = (2.0/3.0) * kenergy_temp;
   }
   // PRESSURE //////////////////////////////////////////////////////////////////
-  if (_measure_pressure) _measurement[_index_pressure] = _rho * (2.0/3.0) * kenergy_temp + (_ptail*_npart + 48.0*virial/3.0)/(_volume); 
+  if (_measure_pressure){} _measurement[_index_pressure] = _rho * (2.0/3.0) * kenergy_temp + (_ptail*_npart + 48.0*virial/3.0)/(_volume); 
   // MAGNETIZATION /////////////////////////////////////////////////////////////
   // TO BE FIXED IN EXERCISE 6
   if(_measure_magnet or _measure_chi){

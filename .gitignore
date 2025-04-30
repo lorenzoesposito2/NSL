@@ -11,6 +11,23 @@
 *.o
 *.obj
 
+# data 
+potential*
+gofr*
+temperature*
+pressure*
+acceptance*
+kinetic*
+magnetization*
+specific*
+suscept*
+total_en*
+pofv*
+config*
+input*
+!input.dat
+output*
+
 # Precompiled Headers
 *.gch
 *.pch
@@ -82,5 +99,6 @@ input-output/
 *.png
 *.json
 IA_equilib
+*.DS_Store
 
 version_config.hpp

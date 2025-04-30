@@ -31,6 +31,7 @@ void print_progress_bar(float progress) {
 int main(int argc, char *argv[]) {
   int nconf = 1;
     string sim_type;
+    string path;
 
     ofstream coutf("../OUTPUT/seed.out");
     coutf << "0000 0000 0000 0001" << endl;
@@ -44,7 +45,10 @@ int main(int argc, char *argv[]) {
         cerr << "Error: Invalid simulation type." << endl;
         return 1;
     }
-    SYS.initialize_properties("../OUTPUT/" + sim_type + "/");
+
+    SYS.get_restart() ? path = "../OUTPUT/ARGON/" + sim_type + "/" : path = "../OUTPUT/ARGON/EQUILIBRATION/" + sim_type + "/";
+    
+    SYS.initialize_properties(path);
     SYS.block_reset(0);
 
     cout << "Simulation started: " << sim_type << endl;
@@ -60,11 +64,11 @@ int main(int argc, char *argv[]) {
             }
         }
 
-        SYS.averages(i + 1, "../OUTPUT/" + sim_type );
+        SYS.averages(i + 1, path);
         SYS.block_reset(i + 1);
     }
     if(SYS.get_sim_type() == 1) cout << "\nmetropolis acceptance ratio: " << (double)SYS.get_naccepted()/(double)SYS.get_nattempts() << endl;
-    SYS.finalize();
+    SYS.finalize(path);
     cout << endl;
 
   cout << "Simulation completed!" << endl;
