@@ -11,10 +11,12 @@ _/    _/  _/_/_/  _/_/_/_/ email: Davide.Galli@unimi.it
 #include <cmath>
 #include <cstdlib>
 #include <string>
+#include <sstream>
 #include "system.h"
 
 using namespace std;
 using namespace arma;
+
 
 void System :: step(){ // Perform a simulation step
   if(_sim_type == 0) this->Verlet();  // Perform a MD step
@@ -66,7 +68,10 @@ double System :: Force(int i, int dim){
 
 void System :: move(int i){ // Propose a MC move for particle i
   if(_sim_type == 3){ //Gibbs sampler for Ising
-    // TO BE FIXED IN EXERCISE 6
+    double d_E = 2.0 * _beta * ( _J * (_particle(this->pbc(i-1)).getspin() + _particle(this->pbc(i+1)).getspin()) + _H);
+    // conditional probability of the spin flip
+    (_rnd.Rannyu() < (1./ (1. + exp(-d_E)))) ? _particle(i).setspin(1) : _particle(i).setspin(-1);
+    _naccepted++;
   } else {           // M(RT)^2
     if(_sim_type == 1){       // LJ system
       vec shift(_ndim);       // Will store the proposed translation
@@ -127,16 +132,24 @@ int System :: pbc(int i){ // Enforce periodic boundary conditions for spins
   return i;
 } 
 
-void System :: initialize(){ // Initialize the System object according to the content of the input files in the ../INPUT/ directory
+void System :: initialize(bool seed_out){ // Initialize the System object according to the content of the input files in the ../INPUT/ directory
 
   int p1, p2; // Read from ../INPUT/Primes a pair of numbers to be used to initialize the RNG
   ifstream Primes("../INPUT/Primes");
   Primes >> p1 >> p2 ;
   Primes.close();
   int seed[4]; // Read the seed of the RNG
-  ifstream Seed("../INPUT/seed.in");
-  Seed >> seed[0] >> seed[1] >> seed[2] >> seed[3];
-  _rnd.SetRandom(seed,p1,p2);
+  
+  if(seed_out){
+    ifstream Seed("../OUTPUT/seed.out");
+    Seed >> seed[0] >> seed[1] >> seed[2] >> seed[3];
+    _rnd.SetRandom(seed,p1,p2);
+  }
+  else{
+    ifstream Seed("../INPUT/seed.in");
+    Seed >> seed[0] >> seed[1] >> seed[2] >> seed[3];
+    _rnd.SetRandom(seed,p1,p2);
+  }  
 
   ofstream couta("../OUTPUT/acceptance.dat"); // Set the heading line in file ../OUTPUT/acceptance.dat
   couta << "#   N_BLOCK:  ACCEPTANCE:" << endl;
@@ -194,6 +207,11 @@ void System :: initialize(){ // Initialize the System object according to the co
         coutf << setw(12) << _side[i];
       }
       coutf << endl;
+      coutf << "HALFSIDE= " ;
+      for(int i=0; i<_ndim; i++){
+        coutf << setw(12) << _halfside[i];
+      }
+      coutf << endl;
     } else if( property == "R_CUT" ){
       input >> _r_cut;
       coutf << "R_CUT= " << _r_cut << endl;
@@ -227,7 +245,7 @@ void System :: initialize_velocities(){
   double xold, yold, zold;
   if(_restart){
     ifstream cinf;
-    cinf.open("../INPUT/CONFIG/conf-1.xyz");
+    cinf.open("../OUTPUT/CONFIG/conf-1.xyz");
     if(cinf.is_open()){
       string comment;
       string particle;
@@ -248,6 +266,7 @@ void System :: initialize_velocities(){
     cinf.close();
     // this part was added by me
   } else if(_init_delta == 1){
+    cout << "initializing velocities with delta distribution" << endl;
     // Energy is similar to kT so the velocity is similar to sqrt(kT)
     double fixed_velocity = sqrt(3.0 * _temp); 
     // initialize velocities with a fixed velocity in a random direction
@@ -259,30 +278,7 @@ void System :: initialize_velocities(){
       _particle(i).setvelocity(2, (random_component == 2) ? direction*fixed_velocity : 0.0); 
     }
 
-    // set half fcc lattice positions
-    ifstream cinf;
-    cinf.open("../INPUT/CONFIG/config.fcc");
-    if(cinf.is_open()){
-    string comment;
-    string particle;
-    double x, y, z;
-    int ncoord;
-    cinf >> ncoord;
-    if (ncoord != _npart){
-      cerr << "PROBLEM: conflicting number of coordinates in input.dat & config.fcc not match!" << endl;
-      exit(EXIT_FAILURE);
-    }
-    cinf >> comment;
-    for(int i=0; i<_npart; i++){
-      cinf >> particle >> x >> y >> z; 
-      _particle(i).setposition(0, this->pbc(_side(0)*x/2., 0)); // half fcc lattice
-      _particle(i).setposition(1, this->pbc(_side(1)*y/2., 1));
-      _particle(i).setposition(2, this->pbc(_side(2)*z/2., 2));
-      _particle(i).acceptmove(); // _x_old = _x_new
-    }
-    } else cerr << "PROBLEM: Unable to open INPUT file config.fcc"<< endl;
-
-    /* set the old positions based on the new velocities
+    // set the old positions based on the new velocities
     for (int i = 0; i < _npart; i++) {
       double xold = this->pbc(_particle(i).getposition(0, true) - _particle(i).getvelocity(0) * _delta, 0);
       double yold = this->pbc(_particle(i).getposition(1, true) - _particle(i).getvelocity(1) * _delta, 1);
@@ -291,8 +287,30 @@ void System :: initialize_velocities(){
       _particle(i).setpositold(0, xold); 
       _particle(i).setpositold(1, yold); 
       _particle(i).setpositold(2, zold); 
-    }*/
-
+    }
+  } else if(_restart and _sim_type == 0 ){
+    ifstream cinf;
+    // initialize velocities from file velocities_.xyz
+    cout << "Restarting simulation: Reading velocities from file velocities_.xyz" << endl;
+    cinf.open("../OUTPUT/CONFIG/velocities_.xyz");
+    if(cinf.is_open()){
+      string comment;
+      string particle;
+      int ncoord;
+      cinf >> ncoord;
+      if (ncoord != _npart){
+        cerr << "PROBLEM: conflicting number of coordinates in input.dat & velocities_.xyz not match!" << endl;
+        exit(EXIT_FAILURE);
+      }
+      cinf >> comment;
+      double vx,vy,vz;
+      for(int i=0; i<_npart; i++){
+        cinf >> particle >> vx >> vy >> vz; // units of coordinates in conf.xyz is _side
+        _particle(i).setvelocity(0, vx);
+        _particle(i).setvelocity(1, vy);
+        _particle(i).setvelocity(2, vz);
+      }
+    } else cerr << "PROBLEM: Unable to open INPUT file velocities_.xyz"<< endl;
   } else {
     vec vx(_npart), vy(_npart), vz(_npart);
     vec sumv(_ndim);
@@ -333,7 +351,7 @@ void System :: initialize_velocities(){
   return;
 }
 
-void System :: initialize_properties(){ // Initialize data members used for measurement of properties
+void System :: initialize_properties(string path){ // Initialize data members used for measurement of properties
 
   string property;
   int index_property = 0;
@@ -351,19 +369,31 @@ void System :: initialize_properties(){ // Initialize data members used for meas
 
   ifstream input("../INPUT/properties.dat");
   if (input.is_open()){
+    std::ostringstream temp_stream;
+    temp_stream.precision(2); // 1 decimal place
+    temp_stream << std::fixed << _temp;
+    string temp_str = temp_stream.str();
     while ( !input.eof() ){
       input >> property;
       if( property == "POTENTIAL_ENERGY" ){
-        ofstream coutp("../OUTPUT/potential_energy.dat");
+        if(_sim_type > 1){
+          cerr << "ERROR: POTENTIAL ENERGY CALCULATION IS NOT APPLICABLE TO THE ISING MODEL SIMULATION." << endl;
+          exit(EXIT_FAILURE);
+        }
+        ofstream coutp(path + "potential_energy_" + temp_str + ".dat");
         coutp << "#BLOCK:  ACTUAL_PE:     PE_AVE:      ERROR:" << endl;
         coutp.close();
         _nprop++;
         _index_penergy = index_property;
         _measure_penergy = true;
         index_property++;
-        _vtail = 0.0; // TO BE FIXED IN EXERCISE 7
+        _vtail = 8. * M_PI * _rho * (1 / (9. * pow(_r_cut, 9)) - 1 / (3 * pow(_r_cut, 3))); // tail correction for potential energy
       } else if( property == "KINETIC_ENERGY" ){
-        ofstream coutk("../OUTPUT/kinetic_energy.dat");
+        if(_sim_type > 1){
+          cerr << "ERROR: KINETIC ENERGY CALCULATION IS NOT APPLICABLE TO THE ISING MODEL SIMULATION." << endl;
+          exit(EXIT_FAILURE);
+        }
+        ofstream coutk(path + "kinetic_energy_" + temp_str + ".dat");
         coutk << "#BLOCK:   ACTUAL_KE:    KE_AVE:      ERROR:" << endl;
         coutk.close();
         _nprop++;
@@ -371,7 +401,7 @@ void System :: initialize_properties(){ // Initialize data members used for meas
         _index_kenergy = index_property;
         index_property++;
       } else if( property == "TOTAL_ENERGY" ){
-        ofstream coutt("../OUTPUT/total_energy.dat");
+        ofstream coutt(path + "total_energy_" + temp_str + ".dat");
         coutt << "#BLOCK:   ACTUAL_TE:    TE_AVE:      ERROR:" << endl;
         coutt.close();
         _nprop++;
@@ -379,7 +409,11 @@ void System :: initialize_properties(){ // Initialize data members used for meas
         _index_tenergy = index_property;
         index_property++;
       } else if( property == "TEMPERATURE" ){
-        ofstream coutte("../OUTPUT/temperature.dat");
+        if(_sim_type > 1){
+          cerr << "ERROR: TEMPERATURE CALCULATION IS NOT APPLICABLE TO THE ISING MODEL SIMULATION." << endl;
+          exit(EXIT_FAILURE);
+        }
+        ofstream coutte(path + "temperature_" + temp_str + ".dat");
         coutte << "#BLOCK:   ACTUAL_T:     T_AVE:       ERROR:" << endl;
         coutte.close();
         _nprop++;
@@ -387,16 +421,24 @@ void System :: initialize_properties(){ // Initialize data members used for meas
         _index_temp = index_property;
         index_property++;
       } else if( property == "PRESSURE" ){
-        ofstream coutpr("../OUTPUT/pressure.dat");
-        coutpr << "#     BLOCK:   ACTUAL_P:     P_AVE:       ERROR:" << endl;
+        if(_sim_type > 1){
+          cerr << "ERROR: PRESSURE CALCULATION IS NOT APPLICABLE TO THE ISING MODEL SIMULATION." << endl;
+          exit(EXIT_FAILURE);
+        }
+        ofstream coutpr(path + "pressure_" + temp_str + ".dat");
+        coutpr << "#BLOCK:   ACTUAL_P:     P_AVE:       ERROR:" << endl;
         coutpr.close();
         _nprop++;
         _measure_pressure = true;
         _index_pressure = index_property;
         index_property++;
-        _ptail = 0.0; // TO BE FIXED IN EXERCISE 7
+        _ptail = 32. * M_PI * _rho * (1 / (9 * pow(_r_cut, 9)) - 1 / (6 * pow(_r_cut, 3))); // tail correction for pressure
       } else if( property == "GOFR" ){
-        ofstream coutgr("../OUTPUT/gofr.dat");
+        if(_sim_type > 1){
+          cerr << "ERROR: RADIAL DISTRIBUTION FUNCTION CALCULATION IS NOT APPLICABLE TO THE ISING MODEL SIMULATION." << endl;
+          exit(EXIT_FAILURE);
+        }
+        ofstream coutgr(path + "gofr_" + temp_str + ".dat");
         coutgr << "# DISTANCE:     AVE_GOFR:        ERROR:" << endl;
         coutgr.close();
         input>>_n_bins;
@@ -407,37 +449,45 @@ void System :: initialize_properties(){ // Initialize data members used for meas
         index_property+= _n_bins;
       } else if( property == "POFV" ){
         if(_sim_type > 0){
-          cerr << "PROBLEM: DOES NOT MAKE SENSE COMPUTING POFV FOR MC" << endl;
+          cerr << "ERROR: VELOCITY MODULUS DISTRIBUTION FUNCTION CALCULATION IS NOT APPLICABLE TO THIS SIMULATION TYPE" << endl;
           exit(EXIT_FAILURE);
         }
-        ofstream coutpv("../OUTPUT/pofv.dat");
-        coutpv << "#VELOCITY:     AVE_POFV:     PROGR_AVE_POVF:        ERROR:" << endl;
+        ofstream coutpv(path + "pofv_" + temp_str + ".dat");
+        coutpv << "#VELOCITY:     AVE_POFV:     PROGR_AVE_POFV:        ERROR:" << endl;
         coutpv.close();
         input>>_n_bins_v;
         _nprop += _n_bins_v;
-        _bin_size_v = 4.0*sqrt(_temp)/(double)_n_bins_v; // TO BE FIXED IN EXERCISE 4
+        _bin_size_v = 4.0*sqrt(_temp)/(double)_n_bins_v; 
         _measure_pofv = true;
         _index_pofv = index_property;
         index_property += _n_bins_v;
       } else if( property == "MAGNETIZATION" ){
-        ofstream coutpr("../OUTPUT/magnetization.dat");
-        coutpr << "#     BLOCK:   ACTUAL_M:     M_AVE:       ERROR:" << endl;
+        if(_sim_type < 2){
+          cerr << "ERROR: MAGNETIZATION CALCULATION IS NOT APPLICABLE TO LJ SIMULATION" << endl;
+          exit(EXIT_FAILURE);
+        }
+        ofstream coutpr(path + "magnetization_" + temp_str + ".dat");
+        coutpr << "#BLOCK:   ACTUAL_M:     M_AVE:       ERROR:" << endl;
         coutpr.close();
         _nprop++;
         _measure_magnet = true;
         _index_magnet = index_property;
         index_property++;
       } else if( property == "SPECIFIC_HEAT" ){
-        ofstream coutpr("../OUTPUT/specific_heat.dat");
-        coutpr << "#     BLOCK:   ACTUAL_CV:    CV_AVE:      ERROR:" << endl;
+        ofstream coutpr(path + "specific_heat_" + temp_str + ".dat");
+        coutpr << "#BLOCK:   ACTUAL_CV:    CV_AVE:      ERROR:" << endl;
         coutpr.close();
         _nprop++;
         _measure_cv = true;
         _index_cv = index_property;
         index_property++;
       } else if( property == "SUSCEPTIBILITY" ){
-        ofstream coutpr("../OUTPUT/susceptibility.dat");
-        coutpr << "#     BLOCK:   ACTUAL_X:     X_AVE:       ERROR:" << endl;
+        if(_sim_type < 2){
+          cerr << "ERROR: SUSCEPTIBILITY CALCULATION IS NOT APPLICABLE TO LJ SIMULATION" << endl;
+          exit(EXIT_FAILURE);
+        }
+        ofstream coutpr(path + "susceptibility_" + temp_str + ".dat");
+        coutpr << "#BLOCK:   ACTUAL_X:     X_AVE:       ERROR:" << endl;
         coutpr.close();
         _nprop++;
         _measure_chi = true;
@@ -480,8 +530,25 @@ void System:: reset_properties(){ // Reset properties to zero
   return;
 }
 
-void System :: finalize(){
+
+void System :: finalize(string path){
+  if (_measure_gofr) {
+    ofstream coutf(path + "gofr_final.dat");
+    coutf << "#DISTANCE:     AVE_GOFR:        ERROR:" << endl;
+    for (int i = 0; i < _n_bins; i++) {
+      double r = (i + 0.5) * _bin_size; 
+      double sum_average = _global_av(_index_gofr + i);
+      double sum_ave2 = _global_av2(_index_gofr + i);
+
+      coutf << setw(12) << r
+            << setw(12) << sum_average / (double(_nblocks)) 
+            << setw(12) << this->error(sum_average, sum_ave2, _nblocks) << endl;
+    }
+    coutf.close();
+  }
+  // write the final configuration and velocities
   this->write_configuration();
+  this->write_velocities();
   _rnd.SaveSeed();
   ofstream coutf;
   coutf.open("../OUTPUT/output.dat",ios::app);
@@ -526,6 +593,25 @@ void System :: write_configuration(){
   return;
 }
 
+// write velocity configuration as .xyz file in directory ../OUTPUT/CONFIG/
+
+void System :: write_velocities(){
+  ofstream coutf;
+  coutf.open("../OUTPUT/CONFIG/velocities_.xyz");
+  if(coutf.is_open()){
+    coutf << _npart << endl;
+    coutf << "#Comment!" << endl;
+    for(int i=0; i<_npart; i++){
+      coutf << "LJ" << "  " 
+            << setw(16) << _particle(i).getvelocity(0)          // vx
+            << setw(16) << _particle(i).getvelocity(1)          // vy
+            << setw(16) << _particle(i).getvelocity(2) << endl; // vz
+    }
+  } else cerr << "PROBLEM: Unable to open velocity.xyz" << endl;
+  coutf.close();
+  return;
+}
+
 // Write configuration nconf as a .xyz file in directory ../OUTPUT/CONFIG/
 void System :: write_XYZ(int nconf){
   ofstream coutf;
@@ -548,36 +634,125 @@ void System :: write_XYZ(int nconf){
 // Read configuration from a .xyz file in directory ../OUTPUT/CONFIG/
 void System :: read_configuration(){
   ifstream cinf;
-  cinf.open("../INPUT/CONFIG/config.xyz");
-  if(cinf.is_open()){
-    string comment;
-    string particle;
-    double x, y, z;
-    int ncoord;
-    cinf >> ncoord;
-    if (ncoord != _npart){
-      cerr << "PROBLEM: conflicting number of coordinates in input.dat & config.xyz not match!" << endl;
-      exit(EXIT_FAILURE);
-    }
-    cinf >> comment;
-    for(int i=0; i<_npart; i++){
-      cinf >> particle >> x >> y >> z; // units of coordinates in conf.xyz is _side
-      _particle(i).setposition(0, this->pbc(_side(0)*x, 0));
-      _particle(i).setposition(1, this->pbc(_side(1)*y, 1));
-      _particle(i).setposition(2, this->pbc(_side(2)*z, 2));
-      _particle(i).acceptmove(); // _x_old = _x_new
-    }
-  } else cerr << "PROBLEM: Unable to open INPUT file config.xyz"<< endl;
-  cinf.close();
-  if(_restart and _sim_type > 1){
-    int spin;
-    cinf.open("../INPUT/CONFIG/config.spin");
-    for(int i=0; i<_npart; i++){
-      cinf >> spin;
-      _particle(i).setspin(spin);
-    }
+  // read input fcc
+  if(_sim_type <= 1 and !_restart and _init_delta == 0){ 
+    cinf.open("../INPUT/CONFIG/config.xyz");
+    cout << "Initializing particles position from file config.xyz" << endl;
+    if(cinf.is_open()){
+      string comment;
+      string particle;
+      double x, y, z;
+      int ncoord;
+      cinf >> ncoord;
+      if (ncoord != _npart){
+        cout << "ncoord = " << ncoord << " _npart = " << _npart << endl;
+        cerr << "PROBLEM: conflicting number of coordinates in input.dat & config.xyz not match!" << endl;
+        exit(EXIT_FAILURE);
+      }
+      cinf >> comment;
+      for(int i=0; i<_npart; i++){
+        cinf >> particle >> x >> y >> z; // units of coordinates in conf.xyz is _side
+        _particle(i).setposition(0, this->pbc(_side(0)*x, 0));
+        _particle(i).setposition(1, this->pbc(_side(1)*y, 1));
+        _particle(i).setposition(2, this->pbc(_side(2)*z, 2));
+        _particle(i).acceptmove(); // _x_old = _x_new
+      }
+    } else cerr << "PROBLEM: Unable to open INPUT file config.xyz"<< endl;
+  }
+  
+  // restart simulation type 0 or 1
+  if(_sim_type <= 1 and _restart){
+    cinf.open("../OUTPUT/CONFIG/config.xyz");
+    cout << "Restarting simulation: Reading configuration from file config.xy and conf-1.xyz" << endl;
+    if(cinf.is_open()){
+      string comment;
+      string particle;
+      int ncoord;
+      cinf >> ncoord;
+      if (ncoord != _npart){
+        cerr << "PROBLEM: conflicting number of coordinates in input.dat & config.xyz not match!" << endl;
+        exit(EXIT_FAILURE);
+      }
+      cinf >> comment;
+      double x,y,z;
+      for(int i=0; i<_npart; i++){
+        cinf >> particle >> x >> y >> z; // units of coordinates in conf.xyz is _side
+        _particle(i).setposition(0, this->pbc(_side(0)*x, 0));
+        _particle(i).setposition(1, this->pbc(_side(1)*y, 1));
+        _particle(i).setposition(2, this->pbc(_side(2)*z, 2));
+      }
+    } else cerr << "PROBLEM: Unable to open INPUT file config.xyz"<< endl;
+    cinf.close();
+    cinf.open("../OUTPUT/CONFIG/conf-1.xyz");
+    if(cinf.is_open()){
+      string comment;
+      string particle;
+      int ncoord;
+      cinf >> ncoord;
+      if (ncoord != _npart){
+        cerr << "PROBLEM: conflicting number of coordinates in input.dat & conf-1.xyz not match!" << endl;
+        exit(EXIT_FAILURE);
+      }
+      cinf >> comment;
+      double xold,yold,zold;
+      for(int i=0; i<_npart; i++){
+        cinf >> particle >> xold >> yold >> zold; // units of coordinates in conf.xyz is _side
+        _particle(i).setpositold(0, this->pbc(_side(0)*xold, 0));
+        _particle(i).setpositold(1, this->pbc(_side(1)*yold, 1));
+        _particle(i).setpositold(2, this->pbc(_side(2)*zold, 2));
+      }
+    } else cerr << "PROBLEM: Unable to open INPUT file conf-1.xyz"<< endl;
     cinf.close();
   }
+  // put the particle in half of the box with fcc configuration
+  if (_sim_type < 2 and _init_delta == 1){
+    cout << "Initializing particles in half of the box with fcc configuration" << endl;
+    cinf.open("../INPUT/CONFIG/config.fcc");
+    if(cinf.is_open()){
+      string comment;
+      string particle;
+      double x, y, z;
+      int ncoord;
+      cinf >> ncoord;
+      if (ncoord != _npart){
+        cout << "ncoord = " << ncoord << " _npart = " << _npart << endl;
+        cerr << "PROBLEM: conflicting number of coordinates in input.dat & config.fcc not match!" << endl;
+        exit(EXIT_FAILURE);
+      }
+      cinf >> comment;
+      for(int i=0; i<_npart; i++){
+        cinf >> particle >> x >> y >> z; 
+        _particle(i).setposition(0, this->pbc(_halfside(0)*x, 0)); // _halfside(0) is half of the box size
+        _particle(i).setposition(1, this->pbc(_halfside(1)*y, 1));
+        _particle(i).setposition(2, this->pbc(_halfside(2)*z, 2));
+        _particle(i).acceptmove(); // _x_old = _x_new
+      }
+    } else cerr << "PROBLEM: Unable to open INPUT file config.fcc"<< endl;
+  }
+  // read input spin
+  if(_sim_type > 1 and !_restart){
+    cinf.open("../INPUT/CONFIG/config.spin");
+    if(cinf.is_open()){
+      int spin;
+      for(int i=0; i<_npart; i++){
+        cinf >> spin;
+        _particle(i).setspin(spin);
+      }
+    } else cerr << "PROBLEM: Unable to open INPUT file config.spin"<< endl;
+    cinf.close();
+  }
+  // restart simulation type 2 or 3
+  if(_restart and _sim_type > 1){
+    if(cinf.is_open()){
+      cinf.open("../OUTPUT/CONFIG/config.spin");
+      int spin;
+      for(int i=0; i<_npart; i++){
+        cinf >> spin;
+        _particle(i).setspin(spin);
+      }
+    } else cerr << "PROBLEM: Unable to open INPUT file config.spin"<< endl;
+    cinf.close();
+  } 
   return;
 }
 
@@ -592,10 +767,11 @@ void System :: block_reset(int blk){ // Reset block accumulators to zero
   return;
 }
 
+
 void System :: measure(){ // Measure properties
   _measurement.zeros();
   // POTENTIAL ENERGY, VIRIAL, GOFR ///////////////////////////////////////////
-  int bin;
+  int bin, bin_v;
   vec distance;
   distance.resize(_ndim);
   double penergy_temp=0.0, dr; // temporary accumulator for potential energy
@@ -611,6 +787,10 @@ void System :: measure(){ // Measure properties
         distance(2) = this->pbc( _particle(i).getposition(2,true) - _particle(j).getposition(2,true), 2);
         dr = sqrt( dot(distance,distance) );
         // GOFR ... TO BE FIXED IN EXERCISE 7
+        if(_measure_gofr){
+          bin = int(dr/_bin_size); //bin index corresponding to distance r
+          if(bin < _n_bins) _measurement(_index_gofr + bin) += 2.0; // factor 2 for symmetry
+        }
         if(dr < _r_cut){
           if(_measure_penergy)  penergy_temp += 1.0/pow(dr,12) - 1.0/pow(dr,6); // POTENTIAL ENERGY
           if(_measure_pressure) virial       += 1.0/pow(dr,12) - 0.5/pow(dr,6); // PRESSURE
@@ -624,23 +804,27 @@ void System :: measure(){ // Measure properties
       double v = sqrt( _particle(i).getvelocity(0) * _particle(i).getvelocity(0) +
                        _particle(i).getvelocity(1) * _particle(i).getvelocity(1) +
                        _particle(i).getvelocity(2) * _particle(i).getvelocity(2) );
-      bin = int(v/_bin_size_v); //bin index corresponding to velocity v
-      if(bin < _n_bins_v) _measurement(_index_pofv + bin) += 1.0;
+      bin_v = int(v/_bin_size_v); //bin index corresponding to velocity v
+      if(bin_v < _n_bins_v) _measurement(_index_pofv + bin_v) += 1.0;
     }
   }
   // POTENTIAL ENERGY //////////////////////////////////////////////////////////
-  if (_measure_penergy){
+  if ((_measure_penergy or _measure_tenergy) and _sim_type < 2){ // if i want to evaluate total energy for LJ i need penergy
+  //if (_measure_penergy){ come il prof
+  //if (_measure_penergy or _measure_tenergy or _measure_cv){
     penergy_temp = _vtail + 4.0 * penergy_temp / double(_npart);
-    _measurement(_index_penergy) = penergy_temp;
+    if (_measure_penergy) _measurement(_index_penergy) = penergy_temp;
   }
   // KINETIC ENERGY ////////////////////////////////////////////////////////////
-  if (_measure_kenergy){
+  //if ((_measure_kenergy or _measure_tenergy or _measure_temp or _measure_pressure) and _sim_type < 2){
+  if (_measure_kenergy or _measure_temp){ //come il prof
+  //if (_measure_kenergy or _measure_tenergy or _measure_temp or _measure_pressure or _measure_cv){
     for (int i=0; i<_npart; i++) kenergy_temp += 0.5 * dot( _particle(i).getvelocity() , _particle(i).getvelocity() ); 
     kenergy_temp /= double(_npart);
-    _measurement(_index_kenergy) = kenergy_temp;
+    if (_measure_kenergy) _measurement(_index_kenergy) = kenergy_temp;
   }
   // TOTAL ENERGY (kinetic+potential) //////////////////////////////////////////
-  if (_measure_tenergy){
+  if (_measure_tenergy or _measure_cv){
     if (_sim_type < 2) _measurement(_index_tenergy) = kenergy_temp + penergy_temp;
     else { 
       double s_i, s_j;
@@ -650,37 +834,82 @@ void System :: measure(){ // Measure properties
         tenergy_temp += - _J * s_i * s_j - 0.5 * _H * (s_i + s_j);
       }
       tenergy_temp /= double(_npart);
-      _measurement(_index_tenergy) = tenergy_temp;
     }
+    if(_measure_tenergy) _measurement(_index_tenergy) = tenergy_temp;
   }
   // TEMPERATURE ///////////////////////////////////////////////////////////////
-  if (_measure_temp and _measure_kenergy) _measurement(_index_temp) = (2.0/3.0) * kenergy_temp;
+  if (_measure_temp){ // to compute temperature i need kenergy, NVE will give T, NVT 0
+  //if (_measure_temp or _measure_kenergy){
+    _measurement(_index_temp) = (2.0/3.0) * kenergy_temp;
+  }
   // PRESSURE //////////////////////////////////////////////////////////////////
-  if (_measure_pressure) _measurement[_index_pressure] = _rho * (2.0/3.0) * kenergy_temp + (_ptail*_npart + 48.0*virial/3.0)/_volume;
+  if (_measure_pressure){} _measurement[_index_pressure] = _rho * (2.0/3.0) * kenergy_temp + (_ptail*_npart + 48.0*virial/3.0)/(_volume); 
   // MAGNETIZATION /////////////////////////////////////////////////////////////
-// TO BE FIXED IN EXERCISE 6
+  // TO BE FIXED IN EXERCISE 6
+  if(_measure_magnet or _measure_chi){
+    for(int i=0; i<_npart; i++){
+      magnetization += double(_particle(i).getspin());
+    }
+    if (_measure_magnet) _measurement(_index_magnet) = magnetization;
+    
+  }
   // SPECIFIC HEAT /////////////////////////////////////////////////////////////
-// TO BE FIXED IN EXERCISE 6
+  // TO BE FIXED IN EXERCISE 6
+  if (_measure_cv){
+    _measurement(_index_cv) = pow(tenergy_temp * double(_npart),2);
+  }
   // SUSCEPTIBILITY ////////////////////////////////////////////////////////////
-// TO BE FIXED IN EXERCISE 6
+  // TO BE FIXED IN EXERCISE 6
+  if(_measure_chi ){
+    //double chi_temp = _measurement(_index_magnet)*_measurement(_index_magnet)*_beta;
+    double chi_temp = magnetization*magnetization * _beta / double(_npart);
+    _measurement(_index_chi) = chi_temp;
+  }
 
   _block_av += _measurement; //Update block accumulators
-
+ 
   return;
 }
 
-void System :: averages(int blk){
+void System :: averages(int blk, string path){
 
   ofstream coutf;
+  ostringstream temp_stream;
+  temp_stream.precision(2); 
+  temp_stream << fixed << _temp;
+
   double average, sum_average, sum_ave2;
 
-  _average     = _block_av / double(_nsteps);
-  _global_av  += _average;
-  _global_av2 += _average % _average; // % -> element-wise multiplication
+  if(_measure_cv){ 
+    // subtract <H>^2 to the block average and multiply by beta^2
+    _block_av(_index_cv) -= pow(_block_av(_index_tenergy) * double(_npart), 2) / double(_nsteps);
+    _block_av(_index_cv) *= _beta * _beta;
+  }
 
-  // POTENTIAL ENERGY //////////////////////////////////////////////////////////
+  if (_measure_gofr) {
+    for (int i = 0; i < _n_bins; i++) {
+      //double r = (i + 0.5) * _bin_size; 
+      double shell_volume = (4.0 / 3.0) * M_PI * (pow(static_cast<double>(i + 1) * _bin_size, 3) - pow(static_cast<double>(i) * _bin_size, 3)); 
+      double norm = shell_volume * _rho * double(_npart); 
+      _block_av(_index_gofr + i) /= norm; 
+    }
+  }
+
+  _average = _block_av / double(_nsteps);
+
+  if(_measure_magnet){
+    _average(_index_magnet) /= double(_npart);
+  }
+
+  if(_measure_cv){
+    _average(_index_cv) /= double(_npart);
+  }
+
+  _global_av  += _average;
+  _global_av2 += _average % _average;
+
   if (_measure_penergy){
-    coutf.open("../OUTPUT/potential_energy.dat",ios::app);
+    coutf.open(path + "/potential_energy_" + temp_stream.str() + ".dat", ios::app);
     average  = _average(_index_penergy);
     sum_average = _global_av(_index_penergy);
     sum_ave2 = _global_av2(_index_penergy);
@@ -690,9 +919,9 @@ void System :: averages(int blk){
           << setw(12) << this->error(sum_average, sum_ave2, blk) << endl;
     coutf.close();
   }
-  // KINETIC ENERGY ////////////////////////////////////////////////////////////
+
   if (_measure_kenergy){
-    coutf.open("../OUTPUT/kinetic_energy.dat",ios::app);
+    coutf.open(path + "/kinetic_energy_" + temp_stream.str() + ".dat", ios::app);
     average  = _average(_index_kenergy);
     sum_average = _global_av(_index_kenergy);
     sum_ave2 = _global_av2(_index_kenergy);
@@ -702,9 +931,9 @@ void System :: averages(int blk){
           << setw(12) << this->error(sum_average, sum_ave2, blk) << endl;
     coutf.close();
   }
-  // TOTAL ENERGY //////////////////////////////////////////////////////////////
+
   if (_measure_tenergy){
-    coutf.open("../OUTPUT/total_energy.dat",ios::app);
+    coutf.open(path + "/total_energy_" + temp_stream.str() + ".dat", ios::app);
     average  = _average(_index_tenergy);
     sum_average = _global_av(_index_tenergy);
     sum_ave2 = _global_av2(_index_tenergy);
@@ -714,9 +943,9 @@ void System :: averages(int blk){
           << setw(12) << this->error(sum_average, sum_ave2, blk) << endl;
     coutf.close();
   }
-  // TEMPERATURE ///////////////////////////////////////////////////////////////
+
   if (_measure_temp){
-    coutf.open("../OUTPUT/temperature.dat",ios::app);
+    coutf.open(path + "/temperature_" + temp_stream.str() + ".dat", ios::app);
     average  = _average(_index_temp);
     sum_average = _global_av(_index_temp);
     sum_ave2 = _global_av2(_index_temp);
@@ -726,9 +955,9 @@ void System :: averages(int blk){
           << setw(12) << this->error(sum_average, sum_ave2, blk) << endl;
     coutf.close();
   }
-  // PRESSURE //////////////////////////////////////////////////////////////////
+
   if (_measure_pressure){
-    coutf.open("../OUTPUT/pressure.dat",ios::app);
+    coutf.open(path + "/pressure_" + temp_stream.str() + ".dat", ios::app);
     average  = _average(_index_pressure);
     sum_average = _global_av(_index_pressure);
     sum_ave2 = _global_av2(_index_pressure);
@@ -738,37 +967,82 @@ void System :: averages(int blk){
           << setw(12) << this->error(sum_average, sum_ave2, blk) << endl;
     coutf.close();
   }
-  // GOFR //////////////////////////////////////////////////////////////////////
-  // TO BE FIXED IN EXERCISE 7
-  // POFV //////////////////////////////////////////////////////////////////////
-  // TO BE FIXED IN EXERCISE 4
+
   if(_measure_pofv){
-    coutf.open("../OUTPUT/pofv.dat",ios::app);
+    coutf.open(path + "/pofv_" + temp_stream.str() + ".dat", ios::app);
     for(int i=0; i<_n_bins_v; i++){
       average  = _average(_index_pofv + i);
       sum_average = _global_av(_index_pofv + i);
       sum_ave2 = _global_av2(_index_pofv + i);
-      coutf << setw(12) << (i+0.5)*_bin_size_v  // bin center
+      coutf << setw(12) << (i+0.5)*_bin_size_v
             << setw(12) << average/double(_npart)
             << setw(12) << sum_average/(double(blk)*double(_npart))
             << setw(12) << this->error(sum_average, sum_ave2, blk) << endl;
     }
     coutf.close();
   }
-  // MAGNETIZATION /////////////////////////////////////////////////////////////
-  // TO BE FIXED IN EXERCISE 6
-  // SPECIFIC HEAT /////////////////////////////////////////////////////////////
-  // TO BE FIXED IN EXERCISE 6
-  // SUSCEPTIBILITY ////////////////////////////////////////////////////////////
-  // TO BE FIXED IN EXERCISE 6
-  // ACCEPTANCE ////////////////////////////////////////////////////////////////
-  double fraction;
-  coutf.open("../OUTPUT/acceptance.dat",ios::app);
-  if(_nattempts > 0) fraction = double(_naccepted)/double(_nattempts);
-  else fraction = 0.0; 
-  coutf << setw(12) << blk << setw(12) << fraction << endl;
-  coutf.close();
+
+  if(_measure_magnet){
+    coutf.open(path + "/magnetization_" + temp_stream.str() + ".dat", ios::app);
+    average  = _average(_index_magnet);
+    sum_average = _global_av(_index_magnet);
+    sum_ave2 = _global_av2(_index_magnet);
+    coutf << setw(12) << blk
+          << setw(12) << average
+          << setw(12) << sum_average/double(blk)
+          << setw(12) << this->error(sum_average, sum_ave2, blk) << endl;
+    coutf.close();
+  }
+
+  if(_measure_cv){
+    coutf.open(path + "/specific_heat_" + temp_stream.str() + ".dat", ios::app);
+    average  = _average(_index_cv);
+    sum_average = _global_av(_index_cv);
+    sum_ave2 = _global_av2(_index_cv);
+    coutf << setw(12) << blk
+          << setw(12) << average
+          << setw(12) << sum_average/double(blk)
+          << setw(12) << this->error(sum_average, sum_ave2, blk) << endl;
+    coutf.close();
+  }
+
+  if(_measure_chi){
+    coutf.open(path + "/susceptibility_" + temp_stream.str() + ".dat", ios::app);
+    average  = _average(_index_chi);
+    sum_average = _global_av(_index_chi);
+    sum_ave2 = _global_av2(_index_chi);
+    coutf << setw(12) << blk
+          << setw(12) << average
+          << setw(12) << sum_average/double(blk)
+          << setw(12) << this->error(sum_average, sum_ave2, blk) << endl;
+    coutf.close();
+  }
+
+  if (_measure_gofr) {
+    ofstream coutf(path + "/gofr_" + temp_stream.str() + ".dat", ios::app);
+    for (int i = 0; i < _n_bins; i++) {
+        double r = (i + 0.5) * _bin_size;
+        double average = _average(_index_gofr + i);
+        double sum_average = _global_av(_index_gofr + i);
+        double sum_ave2 = _global_av2(_index_gofr + i);
+
+        coutf << setw(12) << r
+              << setw(12) << sum_average / double(blk) 
+              << setw(12) << this->error(sum_average, sum_ave2, blk)  << endl; 
+    }
+    coutf.close();
+  }
+
   
+  double fraction;
+
+  if(_sim_type > 0){
+    coutf.open(path + "/acceptance_" + temp_stream.str() + ".dat", ios::app);
+    if(_nattempts > 0) fraction = double(_naccepted)/double(_nattempts);
+    else fraction = 0.0; 
+    coutf << setw(12) << blk << setw(12) << fraction << endl;
+    coutf.close();
+  }
   return;
 }
 
@@ -787,12 +1061,35 @@ int System :: get_nsteps(){
 
 void System :: invert_velocities(){
   for(int i=0; i<_npart; i++){
-    _particle(i).setvelocity(0, this->pbc(_particle(i).getposition(0,false) - _particle(i).getposition(0,true), 0)/(2.0 * _delta));
-    _particle(i).setvelocity(1, this->pbc(_particle(i).getposition(1,false) - _particle(i).getposition(1,true), 1)/(2.0 * _delta));
-    _particle(i).setvelocity(2, this->pbc(_particle(i).getposition(2,false) - _particle(i).getposition(2,true), 2)/(2.0 * _delta));
+    _particle(i).setvelocity(0, -_particle(i).getvelocity(0));
+    _particle(i).setvelocity(1, -_particle(i).getvelocity(1));
+    _particle(i).setvelocity(2, -_particle(i).getvelocity(2));
   }
   return;
 }
+
+void System :: set_temp(double temp){
+  _temp = temp;
+  _beta = 1.0/_temp;
+  return;
+}
+
+int System :: get_sim_type(){
+  return _sim_type;
+}
+
+int System :: get_naccepted(){
+  return _naccepted;
+}
+
+int System :: get_nattempts(){
+  return _nattempts;
+}
+
+bool System :: get_restart(){
+  return _restart;
+}
+
 
 /****************************************************************
 *****************************************************************
@@ -803,3 +1100,5 @@ void System :: invert_velocities(){
 _/    _/  _/_/_/  _/_/_/_/ email: Davide.Galli@unimi.it
 *****************************************************************
 *****************************************************************/
+
+
