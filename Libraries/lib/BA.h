@@ -6,6 +6,7 @@
 #include <iostream>
 #include <fstream>
 #include <functional>
+#include <utility>
 
 using namespace std;
 
@@ -54,6 +55,7 @@ class BA_integral : public BA {
 
     void compute(double * data, string filename) override;
     void compute_importance_sampling(double * rnd_data, string filename);
+    pair<double, double> compute(double * data);
 };
 
 #endif
