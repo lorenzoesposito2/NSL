@@ -103,3 +103,44 @@ void BA_integral::compute_importance_sampling(double * data, string filename) {
     delete[] err;
     
 }
+
+pair<double, double> BA_integral::compute(double * data) {
+    
+
+    double *ave = new double[n_blocks]();
+    double *sum_prog = new double[n_blocks]();
+    double *sum2_prog = new double[n_blocks]();
+    double *err = new double[n_blocks](); 
+    
+    double sum, sum2;
+
+    for (int i = 0; i < n_blocks; ++i) {
+        sum = 0.0;
+        for (int j = 0; j < n_throws/n_blocks; ++j) {
+            int k = j + i * n_throws/n_blocks;
+            sum += f(data[k]);
+        }
+        ave[i] = sum / (n_throws/n_blocks);
+    }
+    
+    for(int i=0; i<n_blocks; i++){
+        for(int j=0; j<i+1; j++){
+            sum_prog[i] += ave[j];
+            sum2_prog[i] += ave[j] * ave[j];
+        }
+        sum_prog[i] /= (i+1);
+        sum2_prog[i] /= (i+1);
+        err[i] = error(sum_prog, sum2_prog, i);
+    }
+
+    pair results = make_pair(sum_prog[n_blocks-1], err[n_blocks-1]);
+
+    delete[] ave;
+    delete[] sum_prog;
+    delete[] sum2_prog;
+    delete[] err;
+
+    return results;
+
+}
+   
