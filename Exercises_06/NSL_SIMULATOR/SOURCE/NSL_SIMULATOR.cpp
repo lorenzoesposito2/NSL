@@ -36,7 +36,8 @@ int main(int argc, char *argv[]) {
     coutf << "0000 0000 0000 0001" << endl;
     coutf.close();
     
-    for (int k = 0; k <= 15; k++) {
+   //double temperatures[] = {0.5, 1.0, 2.0};
+    for (int k = 0; k <=15; k++) {  //k<=15
         double temp = 0.5 + k * 0.1;
         System SYS;
         SYS.set_temp(temp);
@@ -52,8 +53,12 @@ int main(int argc, char *argv[]) {
         SYS.block_reset(0);
 
         // equilibration
-        //SYS.equilibration("../OUTPUT/EQUILIBRATION/" + sim_type, 1000);
-        //SYS.block_reset(0);
+        if(k == 0){
+            SYS.equilibration("../OUTPUT/EQUILIBRATION/" + sim_type, 100000);
+            SYS.block_reset(0);
+            SYS.reset_properties();
+        }
+
 
         for (int i = 0; i < SYS.get_nbl(); i++) {
             print_progress_bar((float)(i + 1) / SYS.get_nbl() * 100.0);

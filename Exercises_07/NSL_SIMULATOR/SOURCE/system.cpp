@@ -783,10 +783,16 @@ void System :: measure(){ // Measure properties
   }
   // KINETIC ENERGY ////////////////////////////////////////////////////////////
   //if ((_measure_kenergy or _measure_tenergy or _measure_temp or _measure_pressure) and _sim_type < 2){
-  if (_measure_kenergy){ //come il prof
+  if (_measure_kenergy or _measure_temp){ //come il prof
   //if (_measure_kenergy or _measure_tenergy or _measure_temp or _measure_pressure or _measure_cv){
-    for (int i=0; i<_npart; i++) kenergy_temp += 0.5 * dot( _particle(i).getvelocity() , _particle(i).getvelocity() ); 
-    kenergy_temp /= double(_npart);
+    if(_sim_type == 0){
+      for (int i=0; i<_npart; i++){
+        kenergy_temp += 0.5 * dot( _particle(i).getvelocity() , _particle(i).getvelocity() );
+      } 
+      kenergy_temp /= double(_npart);
+    }
+    if(_sim_type == 1) kenergy_temp += 0.5 * 3. * _temp; 
+    
     if (_measure_kenergy) _measurement(_index_kenergy) = kenergy_temp;
   }
   // TOTAL ENERGY (kinetic+potential) //////////////////////////////////////////
@@ -809,7 +815,14 @@ void System :: measure(){ // Measure properties
     _measurement(_index_temp) = (2.0/3.0) * kenergy_temp;
   }
   // PRESSURE //////////////////////////////////////////////////////////////////
-  if (_measure_pressure){} _measurement[_index_pressure] = _rho * (2.0/3.0) * kenergy_temp + (_ptail*_npart + 48.0*virial/3.0)/(_volume); 
+  if (_measure_pressure){
+    if(_sim_type == 0){
+      _measurement[_index_pressure] = _rho * (2.0/3.0) * kenergy_temp + (_ptail*_npart + 48.0*virial/3.0)/(_volume);
+    }
+    if(_sim_type == 1){
+      _measurement[_index_pressure] = _rho * _temp + (_ptail*_npart + 48.0*virial/3.0)/(_volume);
+    }
+  } 
   // MAGNETIZATION /////////////////////////////////////////////////////////////
   // TO BE FIXED IN EXERCISE 6
   if(_measure_magnet or _measure_chi){
