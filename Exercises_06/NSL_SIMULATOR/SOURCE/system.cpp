@@ -541,7 +541,7 @@ void System :: write_XYZ(int nconf){
 // Read configuration from a .xyz file in directory ../OUTPUT/CONFIG/
 void System :: read_configuration(){
   ifstream cinf;
-  (_sim_type < 1) ? cinf.open("../INPUT/CONFIG/config.xyz") : cinf.open("../INPUT/CONFIG/config.ising");
+  (_sim_type <= 1) ? cinf.open("../INPUT/CONFIG/config.xyz") : cinf.open("../INPUT/CONFIG/config.ising");
   if(cinf.is_open()){
     string comment;
     string particle;

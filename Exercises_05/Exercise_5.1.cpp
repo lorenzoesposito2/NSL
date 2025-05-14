@@ -16,15 +16,15 @@ int main(int argc, char *argv[]) {
     bool Gaussian = (atoi(argv[1]) != 0);
     
     Random rand_gen("../../Libraries/Parallel_Random_Number_Generator/Primes", "../../Libraries/Parallel_Random_Number_Generator/seed.in");
-    Random rand_gen_2("../../Libraries/Parallel_Random_Number_Generator/Primes", "../../Libraries/Parallel_Random_Number_Generator/seed.in");
-    int n = 100000;
-    int n_blocks = 100;
-    int n_steps = n / n_blocks;
+    //Random rand_gen_2("../../Libraries/Parallel_Random_Number_Generator/Primes", "../../Libraries/Parallel_Random_Number_Generator/seed.in");
+    int n = 1000000; //total number of samples
+    int n_blocks = 100; //number of blocks
+    int n_steps = n / n_blocks; //number of steps in each block
 
     vector<double> x(3);
-    x[0] = 100.;
-    x[1] = 100.;
-    x[2] = 100.;
+    x[0] = 0.;
+    x[1] = 0.;
+    x[2] = 0.;
 
     double step_1s = (Gaussian == false) ? 1.2 : 0.75;
     double step_2p = (Gaussian == false) ? 2.95 : 1.9;
@@ -36,19 +36,17 @@ int main(int argc, char *argv[]) {
     double step_1s_Gauss = 0.75;
     double step_2p_Gauss = 1.9;*/
 
-    cout << "acceptance 1s" << endl;
     vector<vector<double>> samples_1s = metropolis(p_1s, rand_gen, x, step_1s, n, Gaussian);
 
-    x[0] = 100.;
-    x[1] = 100.;
-    x[2] = 100.;
+    x[0] = 0.;
+    x[1] = 0.;
+    x[2] = 0.;
 
-    cout << "acceptance 2p" << endl;
-    vector<vector<double>> samples_2p = metropolis(p_2p, rand_gen_2, x, step_2p, n, Gaussian);
+    vector<vector<double>> samples_2p = metropolis(p_2p, rand_gen, x, step_2p, n, Gaussian);
 
-    // write samples to file
+    /* write samples to file to plot the distribution
     ofstream out_1s_sample;
-    Gaussian == false ? out_1s_sample.open("../data/1s_far.dat") : out_1s_sample.open("../data/1s_Gauss_far.dat");
+    Gaussian == false ? out_1s_sample.open("../data/1s.dat") : out_1s_sample.open("../data/1s_Gauss.dat");
     if (!out_1s_sample.is_open()) {
         cerr << "Error opening file!" << endl;
         return 1;
@@ -59,7 +57,7 @@ int main(int argc, char *argv[]) {
     }
     out_1s_sample.close();
     ofstream out_2p_sample;
-    Gaussian == false ? out_2p_sample.open("../data/2p_far.dat") : out_2p_sample.open("../data/2p_Gauss_far.dat");
+    Gaussian == false ? out_2p_sample.open("../data/2p.dat") : out_2p_sample.open("../data/2p_Gauss.dat");
     if (!out_2p_sample.is_open()) {
         cerr << "Error opening file!" << endl;
         return 1;
@@ -70,16 +68,16 @@ int main(int argc, char *argv[]) {
     }
     out_2p_sample.close();
     cout << "sampling data written in file" << endl;
-
+    */
 
     // evaluate blocking average of r
     vector<double> r(n_blocks);
     vector<double> r_2p(n_blocks);
     
     ofstream out;
-    Gaussian == false ? out.open("../data/r_1s_far.dat") : out.open("../data/r_1s_Gauss_far.dat");
+    Gaussian == false ? out.open("../data/r_1s.dat") : out.open("../data/r_1s_Gauss.dat");
     ofstream out_2p;
-    Gaussian == false ? out_2p.open("../data/r_2p_far.dat") : out_2p.open("../data/r_2p_Gauss_far.dat");
+    Gaussian == false ? out_2p.open("../data/r_2p.dat") : out_2p.open("../data/r_2p_Gauss.dat");
     if (!out.is_open()) {
         cerr << "Error opening file!" << endl;
         return 1;
@@ -89,8 +87,8 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    out << "#Block r_avg r_err" << endl;
-    out_2p << "#Block r_avg r_err" << endl;
+    out << "#Block r_avg r_avg_progr r_err" << endl;
+    out_2p << "#Block r_avg r_avg_progr r_err" << endl;
     double r_avg = 0;
     double r_avg2 = 0;
     double r_avg_2p = 0;
@@ -119,8 +117,8 @@ int main(int argc, char *argv[]) {
         double r_avg2_2p_progressive = r_avg2_2p / (i + 1);
         double r_err_2p_progressive = (i > 0) ? sqrt((r_avg2_2p_progressive - r_avg_2p_progressive * r_avg_2p_progressive) / i) : 0;
 
-        out << i + 1 << " " << r_avg_progressive << " " << r_err_progressive << endl;
-        out_2p << i + 1 << " " << r_avg_2p_progressive << " " << r_err_2p_progressive << endl;
+        out << i + 1 << " " << r[i] << " " << r_avg_progressive << " " << r_err_progressive << endl;
+        out_2p << i + 1 << " " << r_2p[i] << " " << r_avg_2p_progressive << " " << r_err_2p_progressive << endl;
     }
 
     out.close();
