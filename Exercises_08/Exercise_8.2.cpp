@@ -3,7 +3,7 @@
 #include <iomanip>
 #include "random.h"
 #include "BA.h"
-#include "lib.cpp"
+#include "lib.h"
 
 using namespace std;
 
@@ -111,9 +111,9 @@ int main(){
 
     //evaluate H with best parameters
     cout << "Evaluating H with best parameters: " << endl;
-    double * samples = metropolis(psi_trial_abs, rnd, 0.0, 3.0, n, mu_best, sigma_best);
+    double * samples = metropolis(psi_trial_abs, rnd, 0.0, 3.0, n*100, mu_best, sigma_best);
     auto bound_function = bind(H_psi_frac_psi, placeholders::_1, mu_best, sigma_best);
-    BA_integral mean_H(n_blocks, n, bound_function, [](double x) { return 1.0; });
+    BA_integral mean_H(n_blocks, n*100, bound_function, [](double x) { return 1.0; });
     mean_H.compute(samples, "../data/mean_H_best.dat");
 
     //sample psi with best parameters
@@ -122,7 +122,7 @@ int main(){
         cerr << "Error opening file" << endl;
         return 1;
     }
-    for (int i = 0; i < n; i++){
+    for (int i = 0; i < n*100; i++){
         output_psi << samples[i] << endl;
     }
     output_psi.close();
