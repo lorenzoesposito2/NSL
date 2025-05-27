@@ -92,34 +92,36 @@ int main(int argc, char* argv[]) {
             loss_out << step << " " << temp[rank] << " " << f_current << "\n";
         }
 
-        if (rank != size - 1) {
+        
+        if(step % 1000 == 0){
+            if (rank != size - 1) {
             // send fitness value and trip to next rank
             double f_send = best.distance();
             vector<int> path = best.get_path();
             MPI_Send(&f_send, 1, MPI_DOUBLE, rank + 1, 0, MPI_COMM_WORLD);
             MPI_Send(path.data(), path.size(), MPI_INT, rank + 1, 0, MPI_COMM_WORLD);
-        }
-
-        if (rank != 0) {
-            // receive fitness value and trip from previous rank
-            double f_recv;
-            MPI_Recv(&f_recv, 1, MPI_DOUBLE, rank - 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-            vector<int> path_recv(n_cities);
-            MPI_Recv(path_recv.data(), n_cities, MPI_INT, rank - 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            }
+            if (rank != 0) {
+                // receive fitness value and trip from previous rank
+                double f_recv;
+                MPI_Recv(&f_recv, 1, MPI_DOUBLE, rank - 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                vector<int> path_recv(n_cities);
+                MPI_Recv(path_recv.data(), n_cities, MPI_INT, rank - 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
             
-            // create new trip from received path
-            trip received_trip(n_cities, "cap_prov_ita.dat", rnd);
-            received_trip.set_path(path_recv);
-            double f_received = received_trip.distance();
+                // create new trip from received path
+                trip received_trip(n_cities, "cap_prov_ita.dat", rnd);
+                received_trip.set_path(path_recv);
+                double f_received = received_trip.distance();
 
-            // Compare and possibly update best trip
-            double delta = beta[rank] - beta[rank - 1] * (f_received - f_current);
-            if (delta > 0 || rnd.Rannyu() < exp(delta)) {
-                current = received_trip;
-                f_current = f_received;
-                if (f_current < f_best) {
-                    f_best = f_current;
-                    best = current;
+                // Compare and possibly update best trip
+                double delta = beta[rank] - beta[rank - 1] * (f_received - f_current);
+                if (delta > 0 || rnd.Rannyu() < exp(delta)) {
+                    current = received_trip;
+                    f_current = f_received;
+                    if (f_current < f_best) {
+                        f_best = f_current;
+                        best = current;
+                    }
                 }
             }
         }
