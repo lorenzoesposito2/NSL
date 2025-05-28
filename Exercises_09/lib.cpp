@@ -205,6 +205,25 @@ GA::GA(int l_cities, int n_population, bool circle_config)
     }
 }
 
+GA::GA(int l_cities, int n_population, string path)
+    : rnd("../Libraries/Parallel_Random_Number_Generator/Primes", "../Libraries/Parallel_Random_Number_Generator/seed.in"),
+      _l_cities(l_cities), _n_population(n_population) {
+
+    // Initialize population from file
+    ifstream in(path);
+    if (!in) {
+        cerr << "Error opening file: " << path << endl;
+        exit(EXIT_FAILURE);
+    }
+    
+    for (int i = 0; i < n_population; i++) {
+        trip t(l_cities, path, rnd);
+        check_trip(t);
+        population.insert(make_pair(t.distance(), t));
+    }
+    in.close();
+}
+
 /*
 print each trip in the population with its distance
 */

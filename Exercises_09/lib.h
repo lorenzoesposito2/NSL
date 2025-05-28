@@ -34,12 +34,17 @@ public:
     }
 
     void set_path(const vector<int>& path) {
-        if (path.size() != _n_cities) {
-            throw std::invalid_argument("Path size does not match number of cities.");
-        }
-        for (int i = 0; i < _n_cities; ++i) {
-            cities[i].id = path[i];
-        }
+    if (path.size() != _n_cities) {
+        throw std::invalid_argument("Path size does not match number of cities.");
+    }
+    vector<city> new_cities;
+    for (int id : path) {
+        // Trova la città con quell'id
+        auto it = std::find_if(cities.begin(), cities.end(), [id](const city& c){ return c.id == id; });
+        if (it == cities.end()) throw std::runtime_error("City id not found in set_path");
+        new_cities.push_back(*it);
+    }
+    cities = new_cities;
     }
     
 
@@ -60,6 +65,7 @@ public:
     multimap<double, trip> population;
 
     GA(int l_cities, int n_population, bool circle_config);
+    GA(int l_cities, int n_population, string path);
     void print_population();
     void write_cities_config(vector<double> x, vector<double> y, string path);
     void check_trip(trip t);
