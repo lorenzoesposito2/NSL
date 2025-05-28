@@ -4,8 +4,8 @@
 #include <vector>
 #include <iomanip>
 #include <cmath>
-#include "random.h"
 #include "lib.h"
+#include "random.h"
 
 using namespace std;
 
@@ -33,8 +33,9 @@ int main(int argc, char* argv[]) {
     // Temperatures and inverse temperatures
     vector<double> temp(size), beta(size);
     double T_max = 5.0;
+    double T_min = 0.01;
     for (int i = 0; i < size; ++i) {
-        temp[i] = T_max / pow(2.0, i);
+        temp[i] = abs(T_max - (T_max - T_min) * i / (size - 1));
         beta[i] = 1.0 / temp[i];
     }
     cout << "Rank " << rank << " has temperature T = " << temp[rank] << endl; 
@@ -48,7 +49,7 @@ int main(int argc, char* argv[]) {
     
     double f_current = current.distance();
     double f_best = f_current;
-    int SA_steps = 500000;
+    int SA_steps = 1000000;
 
     ofstream loss_out;
     if (rank == size - 1) {
@@ -61,7 +62,7 @@ int main(int argc, char* argv[]) {
         // Simulated Annealing step
         trip trial = current;
         double r = rnd.Rannyu();
-        if (r < 0.3) {
+        if (r < 0.35) {
             trial.pair_permutation(rnd);
         } else if (r < 0.6) {
             int m = rnd.Rannyu(1, n_cities - 2);
@@ -93,34 +94,54 @@ int main(int argc, char* argv[]) {
         }
 
         
-        if(step % 1000 == 0){
-            if (rank != size - 1) {
-            // send fitness value and trip to next rank
-            double f_send = best.distance();
-            vector<int> path = best.get_path();
-            MPI_Send(&f_send, 1, MPI_DOUBLE, rank + 1, 0, MPI_COMM_WORLD);
-            MPI_Send(path.data(), path.size(), MPI_INT, rank + 1, 0, MPI_COMM_WORLD);
+        // every 1000 steps, swap attempt
+        if (step % 1000 == 0) {
+            int partner = -1;
+            // partner selection 
+            // use a even-odd pattern to avoid deadlocks
+            if (((step/500) % 2) == 0) {
+                // if rank is even, partner is next rank, if odd, partner is previous rank
+                if (rank % 2 == 0 && rank < size - 1) partner = rank + 1;
+                else if (rank % 2 == 1) partner = rank - 1;
+            } else {
+                if (rank % 2 == 1 && rank < size - 1) partner = rank + 1;
+                else if (rank % 2 == 0 && rank > 0) partner = rank - 1;
             }
-            if (rank != 0) {
-                // receive fitness value and trip from previous rank
-                double f_recv;
-                MPI_Recv(&f_recv, 1, MPI_DOUBLE, rank - 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                vector<int> path_recv(n_cities);
-                MPI_Recv(path_recv.data(), n_cities, MPI_INT, rank - 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-            
-                // create new trip from received path
-                trip received_trip(n_cities, "cap_prov_ita.dat", rnd);
-                received_trip.set_path(path_recv);
-                double f_received = received_trip.distance();
 
-                // Compare and possibly update best trip
-                double delta = beta[rank] - beta[rank - 1] * (f_received - f_current);
-                if (delta > 0 || rnd.Rannyu() < exp(delta)) {
-                    current = received_trip;
-                    f_current = f_received;
+            // Ensure partner is within bounds
+            if (partner >= 0 && partner < size) {
+                // fitness exchange
+                double send_f = f_current, recv_f;
+                MPI_Request reqs[2]; // Isend and Irecv are non-blocking so we need requests
+                MPI_Isend(&send_f, 1, MPI_DOUBLE, partner, 0, MPI_COMM_WORLD, &reqs[0]);
+                MPI_Irecv(&recv_f, 1, MPI_DOUBLE, partner, 0, MPI_COMM_WORLD, &reqs[1]);
+                MPI_Waitall(2, reqs, MPI_STATUSES_IGNORE); // wait for both sends and receives
+
+                // swap probability calculation
+                double delta = (beta[partner] - beta[rank]) * (recv_f - f_current);
+                double p_swap = min(1.0, exp(delta));
+                int do_swap = (rnd.Rannyu() < p_swap) ? 1 : 0;
+                int partner_swap;
+
+                // Sendrecv avoids deadlocks by sending and receiving in one call
+                MPI_Sendrecv(&do_swap, 1, MPI_INT, partner, 1,
+                     &partner_swap, 1, MPI_INT, partner, 1,
+                     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+
+                // if swap is accepted, exchange paths
+                if (do_swap && partner_swap) {
+                    vector<int> send_path = current.get_path();
+                    vector<int> recv_path(n_cities);
+                    MPI_Request reqs2[2];
+                    MPI_Isend(send_path.data(), n_cities, MPI_INT, partner, 2, MPI_COMM_WORLD, &reqs2[0]);
+                    MPI_Irecv(recv_path.data(), n_cities, MPI_INT, partner, 2, MPI_COMM_WORLD, &reqs2[1]);
+                    MPI_Waitall(2, reqs2, MPI_STATUSES_IGNORE);
+
+                    current.set_path(recv_path);
+                    f_current = recv_f;
                     if (f_current < f_best) {
-                        f_best = f_current;
-                        best = current;
+                    f_best = f_current;
+                    best = current;
                     }
                 }
             }
@@ -157,6 +178,7 @@ int main(int argc, char* argv[]) {
         }
         best_out << endl;
         best_out.close();
+        cout << endl;
         cout << "Best path fitness: " << global.value << endl;
     }
 
