@@ -34,8 +34,11 @@ int main(int argc, char* argv[]) {
     vector<double> temp(size), beta(size);
     double T_max = 5.0;
     double T_min = 0.01;
+    double log_Tmax = log(T_max);
+    double log_Tmin = log(T_min);
     for (int i = 0; i < size; ++i) {
-        temp[i] = abs(T_max - (T_max - T_min) * i / (size - 1));
+        temp[i] = exp(log_Tmax - (log_Tmax - log_Tmin) * i / (size - 1));
+       //temp[i] = abs(T_max - (T_max - T_min) * i / (size - 1));
         beta[i] = 1.0 / temp[i];
     }
     cout << "Rank " << rank << " has temperature T = " << temp[rank] << endl; 
@@ -49,7 +52,7 @@ int main(int argc, char* argv[]) {
     
     double f_current = current.distance();
     double f_best = f_current;
-    int SA_steps = 1000000;
+    int SA_steps = 5000000;
 
     ofstream loss_out;
     if (rank == size - 1) {
