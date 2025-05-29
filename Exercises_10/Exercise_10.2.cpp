@@ -153,7 +153,7 @@ int main(int argc, char* argv[]) {
         if (rank == 0) print_progress_bar(100.0 * step / SA_steps);
     }
 
-    // Trova il best globale tra tutti i processi
+    // Find the best path across all ranks
     struct {
         double value;
         int rank;
@@ -166,7 +166,7 @@ int main(int argc, char* argv[]) {
     if (rank == global.rank) {
         global_path = best.get_path();
     }
-    // Diffondi il best path globale a tutti
+    // Broadcast the best path to all ranks
     MPI_Bcast(global_path.data(), n_cities, MPI_INT, global.rank, MPI_COMM_WORLD);
 
     if (rank == 0) {
