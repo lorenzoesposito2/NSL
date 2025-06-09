@@ -34,10 +34,10 @@ int main(int argc, char* argv[]) {
     asset.set_dt(T / n_steps);
 
 
-    double* call_ave = new double[N]();
-    double* call_ave2 = new double[N]();
-    double* put_ave = new double[N]();
-    double* put_ave2 = new double[N]();
+    double* call_ave = new double[N](); // average of the call option prices
+    double* call_ave2 = new double[N](); // average of the square of the call option prices
+    double* put_ave = new double[N](); // average of the put option prices
+    double* put_ave2 = new double[N](); // average of the square of the put option prices
 
     std::ostringstream filename;
     filename << "../data/option_prices_" << n_steps << ".dat";
@@ -50,12 +50,16 @@ int main(int argc, char* argv[]) {
     out << "#Block Call_Ave Call_Error Put_Ave Put_Error" << endl;
 
     cout << "saving results in file " << filename.str() << endl;
+    // external loop over the blocks
     for (int i = 0; i < N; i++) {
         double call = 0.;
         double put = 0.;
+        // internal loop over the simulations
         for (int j = 0; j < M / N; j++) {
+            // reset the asset price for each simulation
             asset.reset(S_0);
-        
+            
+            // update the asset price for n_steps
             for (int k = 0; k < n_steps; k++) {
                 asset.update();
             }
@@ -65,6 +69,7 @@ int main(int argc, char* argv[]) {
         call /= (M / N);
         put /= (M / N);
 
+        // update the average and the average of the square
         if (i == 0) {
             call_ave[i] = call;
             call_ave2[i] = call * call;
@@ -77,6 +82,7 @@ int main(int argc, char* argv[]) {
             put_ave2[i] = put_ave2[i - 1] + (put * put - put_ave2[i - 1]) / (i + 1);
         }
 
+        // calculate the error
         double call_error = error(call_ave, call_ave2, i);
         double put_error = error(put_ave, put_ave2, i);
 

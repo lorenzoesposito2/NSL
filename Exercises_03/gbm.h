@@ -22,7 +22,7 @@ class gbm {
         gbm(double S_0_, double mu_, double sigma_, const char* seed_path, const char* primes_path);
         ~gbm() {};
 
-        // methods
+        // set/get methods
         void set_t(double t_){t = t_;};
         void set_dt(double dt_){dt = dt_;};
         void set_S_0(double S_0_){S_0 = S_0_;};
