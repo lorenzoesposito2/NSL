@@ -50,6 +50,14 @@ void BA_integral::compute(double * data, string filename) {
 
 }
 
+double BA::error(double *AV, double *AV2, int n){
+    if (n == 0){
+        return 0;
+    } else {
+        return sqrt((AV2[n] - pow(AV[n], 2))/n);
+    }
+}
+
 void BA_integral::compute_importance_sampling(double * data, string filename) {
     std::ofstream out(filename);
     if (!out.is_open()) {

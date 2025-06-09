@@ -9,6 +9,11 @@
 
 using namespace std;
 
+/*
+Random Walk class
+This class implements a random walk in 3D space.
+It can perform both discrete and continuous random walks.
+*/
 class RW {
     protected:
     int n_steps;

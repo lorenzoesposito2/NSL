@@ -14,14 +14,7 @@ class BA {
     protected:
 
     int n_blocks, n_throws;
-
-    double error(double *AV, double *AV2, int n){
-        if (n == 0){
-            return 0;
-        } else {
-            return sqrt((AV2[n] - pow(AV[n], 2))/n);
-        }
-    }
+    double error(double *AV, double *AV2, int n);
 
     public: 
 
@@ -52,10 +45,9 @@ class BA_integral : public BA {
 
     ~BA_integral(){};
 
-
-    void compute(double * data, string filename) override;
-    void compute_importance_sampling(double * rnd_data, string filename);
-    pair<double, double> compute(double * data);
+    void compute(double * data, string filename) override; // compute the integral using block averaging
+    void compute_importance_sampling(double * rnd_data, string filename); // compute the integral using block averaging and importance sampling
+    pair<double, double> compute(double * data); // compute the integral and return the estimate and error
 };
 
 #endif

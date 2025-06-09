@@ -18,6 +18,7 @@ void RW::update_discrete(){
 }
 
 void RW::update_continuous(){
+    // random direction in uniform solid angle sampling
     double phi = rand_gen.Rannyu(0, 2*M_PI);
     double theta = acos(1-2.*rand_gen.Rannyu());
     pos[0] += sin(theta)*cos(phi);
@@ -25,10 +26,11 @@ void RW::update_continuous(){
     pos[2] += cos(theta);
 }
 
+// useful to plot the uniform distribution on the unit sphere
 void RW::solidAngle_sampling(int n, string path){
     ofstream out(path);
     if (!out.is_open()) {
-        cerr << "Errore nell'apertura del file " << path << endl;
+        cerr << "ERROR IN FILE OPENING " << path << endl;
         return;
     }
     out << "x y z" << endl;
