@@ -53,6 +53,7 @@ int main(){
 
     cout << "writing results in files std_dice.dat, exp_dice.dat and cauchy_dice.dat" << endl;
 
+    // perform extraction of the sum variables for each distribution
     for (int i = 0; i < realizations; i++) {
         for (int k = 0; k < 4; k++) {
             double sum_std = 0.0, sum_exp = 0.0, sum_cauchy = 0.0;
