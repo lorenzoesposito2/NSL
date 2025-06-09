@@ -26,6 +26,7 @@ int main(int argc, char *argv[]) {
     x[1] = 0.;
     x[2] = 0.;
 
+    // step size for the metropolis algorithm
     double step_1s = (Gaussian == false) ? 1.2 : 0.75;
     double step_2p = (Gaussian == false) ? 2.95 : 1.9;
 
@@ -95,6 +96,7 @@ int main(int argc, char *argv[]) {
     double r_avg2_2p = 0;
 
     cout << "writing data to file" << endl;
+    // evaluate the blocking average of r
     for (int i = 0; i < n_blocks; ++i) {
         double sum = 0;
         double sum_2p = 0;

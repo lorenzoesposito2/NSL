@@ -13,6 +13,7 @@ double norm(vector<double> r){
     return sqrt(norm);
 }
 
+// probability density functions for the 1s and 2p orbitals
 double p_1s(vector<double> r){
     return exp(-2*norm(r));
 }
