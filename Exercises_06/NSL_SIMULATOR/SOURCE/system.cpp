@@ -541,7 +541,7 @@ void System :: write_XYZ(int nconf){
 // Read configuration from a .xyz file in directory ../OUTPUT/CONFIG/
 void System :: read_configuration(){
   ifstream cinf;
-  (_sim_type <= 1) ? cinf.open("../INPUT/CONFIG/config.xyz") : cinf.open("../INPUT/CONFIG/config.ising");
+  (_sim_type <= 1 and !_restart) ? cinf.open("../INPUT/CONFIG/config.xyz") : cinf.open("../INPUT/CONFIG/config.ising");
   if(cinf.is_open()){
     string comment;
     string particle;
@@ -562,11 +562,12 @@ void System :: read_configuration(){
       _particle(i).acceptmove(); // _x_old = _x_new
     }
     }
+    cinf.close();
   } else cerr << "PROBLEM: Unable to open INPUT file config.xyz"<< endl;
-  cinf.close();
+  
   if(_restart and _sim_type > 1){
     int spin;
-    cinf.open("../INPUT/CONFIG/config.spin");
+    cinf.open("../OUTPUT/CONFIG/config.spin");
     for(int i=0; i<_npart; i++){
       cinf >> spin;
       _particle(i).setspin(spin);

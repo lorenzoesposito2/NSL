@@ -36,8 +36,7 @@ int main(int argc, char *argv[]) {
     coutf << "0000 0000 0000 0001" << endl;
     coutf.close();
     
-   //double temperatures[] = {0.5, 1.0, 2.0};
-    for (int k = 0; k <=15; k++) {  //k<=15
+    for (int k = 0; k <=15; k++) {  
         double temp = 0.5 + k * 0.1;
         System SYS;
         SYS.set_temp(temp);
@@ -50,16 +49,8 @@ int main(int argc, char *argv[]) {
         }
         cout << "1D Ising simulation at temperature: " << temp << " using " << sim_type << endl;
         SYS.initialize_properties("../OUTPUT/" + sim_type + "/");
-        SYS.block_reset(0);
 
-        // equilibration
-        if(k == 0){
-            SYS.equilibration("../OUTPUT/EQUILIBRATION/" + sim_type, 100000);
-            SYS.block_reset(0);
-            SYS.reset_properties();
-        }
-
-
+        
         for (int i = 0; i < SYS.get_nbl(); i++) {
             print_progress_bar((float)(i + 1) / SYS.get_nbl() * 100.0);
             for (int j = 0; j < SYS.get_nsteps(); j++) {
