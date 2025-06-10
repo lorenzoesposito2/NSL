@@ -1,0 +1,29 @@
+SIMULATION_TYPE        1
+RESTART                1
+NPART                  108
+TEMP                   1.1
+RHO                    0.8
+R_CUT                  2.5
+DELTA                  0.1
+NBLOCKS                100
+NSTEPS                 3000
+
+ENDINPUT
+
+
+SIMULATION_TYPE        2 1.0 0.0
+RESTART                0
+NPART                  50
+NBLOCKS                100
+NSTEPS                 10000
+
+ENDINPUT
+
+SIMULATION_TYPE 2 means ISING 1D MONTE CARLO (MRT^2) SIMULATION
+SIMULATION_TYPE 3 means ISING 1D MONTE CARLO (GIBBS) SIMULATION
+SIMULATION_TYPE 2/3 J H
+
+
+optimal delta metro ex 7 0.1
+
+
