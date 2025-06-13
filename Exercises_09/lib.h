@@ -9,6 +9,9 @@
 
 using namespace std;
 
+/*
+struct city represents a city with its coordinates and an identifier.
+*/
 struct city {
     int id;
     double x, y;
@@ -16,16 +19,21 @@ struct city {
     city(double x, double y, int id);
 };
 
+/*
+class trip represents a trip consisting of a sequence of cities.
+It provides methods to calculate the total distance of the trip.
+*/
 class trip {
 public:
     trip() : _n_cities(0) {}; // default constructor
     trip(int n_cities, string path, Random& rnd); // constructor with file input
-    int _n_cities;
-    vector<city> cities;
-    double distance();
+    int _n_cities; // number of cities in the trip
+    vector<city> cities; // vector of cities in the trip
+    double distance(); // calculates the total distance of the trip
     void swap(int i, int j);
     void print_trip(); 
-    void check();
+    void check(); // checks if the trip is valid (all cities are unique and in correct order)
+    
     vector<int> get_path() {
         vector<int> path;
         for (const auto& c : cities) {
@@ -40,7 +48,7 @@ public:
     }
     vector<city> new_cities;
     for (int id : path) {
-        // Trova la città con quell'id
+        // find the city with the given id
         auto it = std::find_if(cities.begin(), cities.end(), [id](const city& c){ return c.id == id; });
         if (it == cities.end()) throw std::runtime_error("City id not found in set_path");
         new_cities.push_back(*it);
@@ -56,17 +64,20 @@ public:
     void inversion();
 };
 
+/*
+class GA represents a Genetic Algorithm for solving the Traveling Salesman Problem (TSP).
+*/
 class GA {
 private:
     Random rnd;
 
 public:
-    int _l_cities;
-    int _n_population;
-    multimap<double, trip> population;
+    int _l_cities; // length of the cities vector
+    int _n_population; // number of individuals in the population
+    multimap<double, trip> population; // population of trips, sorted by distance
 
-    GA(int l_cities, int n_population, bool circle_config);
-    GA(int l_cities, int n_population, string path);
+    GA(int l_cities, int n_population, bool circle_config); // constructor for circle and square configuration
+    GA(int l_cities, int n_population, string path); // constructor for file input
     void print_population();
     void write_cities_config(vector<double> x, vector<double> y, string path);
     void check_trip(trip t);

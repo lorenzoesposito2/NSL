@@ -42,6 +42,10 @@ trip::trip(int n_cities, string path, Random& rnd) {
     check();
 }
 
+
+/*
+calculate the total distance of the trip
+*/
 double trip::distance() {
     double d = 0;
     for (int i = 0; i < _n_cities - 1; i++) {
@@ -73,6 +77,9 @@ void trip::print_trip() {
     cout << endl;
 }
 
+/*
+check if the trip is valid, i.e. all cities are unique  
+*/
 void trip::check() {
     map<int, bool> visited;
     for (int i = 0; i < _n_cities; i++) {

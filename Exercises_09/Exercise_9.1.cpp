@@ -75,13 +75,16 @@ int main(int argc, char *argv[]) {
             float progress = 100.0f * (i * (n_population/2) + j + 1) / (n_gen * (n_population/2));
             print_progress_bar(progress);
             
+            // Select two parents from the population
             // t1 and t2 are a copy to insert into new population
             trip t1 = ga.select_individual(2.0);
             trip t2 = ga.select_individual(2.0);
             
+            // Crossover the two parents
             if (rnd.Rannyu() < 0.80) ga.crossover(t1, t2);
 
             
+            // Mutate the first offspring
             double prob = rnd.Rannyu();
             int m_shift = int(rnd.Rannyu(1, n_cities - 2));
             int n_shift = int(rnd.Rannyu(1, n_cities - 2));
@@ -91,6 +94,7 @@ int main(int argc, char *argv[]) {
             else if (prob < 0.3) t1.m_permutation(rnd, m_perm);
             else if (prob < 0.35) t1.inversion();
 
+            // Mutate the second offspring
             prob = rnd.Rannyu();
             m_shift = int(rnd.Rannyu(1, n_cities - 2));
             n_shift = int(rnd.Rannyu(1, n_cities - 2));
@@ -100,10 +104,13 @@ int main(int argc, char *argv[]) {
             else if (prob < 0.3) t2.m_permutation(rnd, m_perm);
             else if (prob < 0.35) t2.inversion();
 
+            // Insert the two offspring into the new population
             new_population.insert({t1.distance(), t1});
             new_population.insert({t2.distance(), t2});
         }
+        // update the population with the new population
         ga.population = new_population;
+        // write trip data to file
         ga.write_loss(i, "../data/best_loss_" + arg + ".dat");
         ga.write_mean_loss(i, "../data/mean_loss_" + arg + ".dat");
     }  
