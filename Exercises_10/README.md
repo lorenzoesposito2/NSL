@@ -8,4 +8,4 @@ there are two data directories
 
 - `data` which contains the results running the code in my personal computer.
 
-- `datatolab` which contains the results running the code on a lab computer with 12 cores.
+- `datatolab` (compressed) which contains the results running the code on a lab computer with 12 cores.
