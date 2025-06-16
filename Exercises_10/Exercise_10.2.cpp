@@ -169,6 +169,8 @@ int main(int argc, char* argv[]) {
     // Broadcast the best path to all ranks
     MPI_Bcast(global_path.data(), n_cities, MPI_INT, global.rank, MPI_COMM_WORLD);
 
+
+    // Output the best path found by rank 0
     if (rank == 0) {
         ofstream best_out("data/parallel_tempering_best_path.dat");
         if (!best_out.is_open()) {

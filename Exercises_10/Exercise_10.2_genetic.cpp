@@ -62,9 +62,10 @@ int main() {
             trip t1 = ga.select_individual(2.0);
             trip t2 = ga.select_individual(2.0);
             
+            // crossover
             if (rnd.Rannyu() < 0.80) ga.crossover(t1, t2);
 
-            
+            // offspring mutations
             double prob = rnd.Rannyu();
             int m_shift = int(rnd.Rannyu(1, n_cities - 2));
             int n_shift = int(rnd.Rannyu(1, n_cities - 2));
@@ -83,9 +84,12 @@ int main() {
             else if (prob < 0.3) t2.m_permutation(rnd, m_perm);
             else if (prob < 0.35) t2.inversion();
 
+            // insert into new population
             new_population.insert({t1.distance(), t1});
             new_population.insert({t2.distance(), t2});
         }
+
+        // replace the old population with the new one
         ga.population = new_population;
         ga.write_loss(i, "data/best_loss_genetic.dat");
         

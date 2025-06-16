@@ -87,6 +87,7 @@ int main(){
         }
     }
     
+    // write output 
     output.close();
     ofstream out("../data/tsp_best_path.dat");
     if (!out.is_open()){
