@@ -278,16 +278,6 @@ void System :: initialize_velocities(){
       _particle(i).setvelocity(2, (random_component == 2) ? direction*fixed_velocity : 0.0); 
     }
 
-    // set the old positions based on the new velocities
-    for (int i = 0; i < _npart; i++) {
-      double xold = this->pbc(_particle(i).getposition(0, true) - _particle(i).getvelocity(0) * _delta, 0);
-      double yold = this->pbc(_particle(i).getposition(1, true) - _particle(i).getvelocity(1) * _delta, 1);
-      double zold = this->pbc(_particle(i).getposition(2, true) - _particle(i).getvelocity(2) * _delta, 2);
-
-      _particle(i).setpositold(0, xold); 
-      _particle(i).setpositold(1, yold); 
-      _particle(i).setpositold(2, zold); 
-    }
   } else if(_restart and _sim_type == 0 ){
     ifstream cinf;
     // initialize velocities from file velocities_.xyz
@@ -1059,11 +1049,31 @@ int System :: get_nsteps(){
   return _nsteps;
 }
 
-void System :: invert_velocities(){
+// try to invert time direction
+void System :: reverse_time(){
+
+  for(int i=0; i<_npart; i++){
+    double xo = _particle(i).getposition(0,false);
+    double xc = _particle(i).getposition(0,true);
+    _particle(i).setpositold(0, xc);
+    _particle(i).setposition(0, xo);
+    // stesso per y e z
+    xo = _particle(i).getposition(1,false);
+    xc = _particle(i).getposition(1,true);
+    _particle(i).setpositold(1, xc);
+    _particle(i).setposition(1, xo);
+
+    xo = _particle(i).getposition(2,false);
+    xc = _particle(i).getposition(2,true);
+    _particle(i).setpositold(2, xc);
+    _particle(i).setposition(2, xo);
+  }
+
   for(int i=0; i<_npart; i++){
     _particle(i).setvelocity(0, -_particle(i).getvelocity(0));
     _particle(i).setvelocity(1, -_particle(i).getvelocity(1));
     _particle(i).setvelocity(2, -_particle(i).getvelocity(2));
+    _particle(i).acceptmove();
   }
   return;
 }

@@ -82,7 +82,7 @@ public: // Function declarations
   void block_reset(int blk);  // Reset block averages
   void measure();             // Measure properties of the system
   void averages(int blk, string path);     // Compute averages of properties
-  void invert_velocities(); // Invert velocities of particles
+  void reverse_time(); // Invert velocities of particles
   void reset_properties();    // Reset properties to zero
   double error(double acc, double acc2, int blk); // Compute error
   void move(int part);        // Move a particle

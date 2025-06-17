@@ -82,7 +82,7 @@ int main (int argc, char *argv[]){
     */
 
   int nconf = 1;
-  string path = "../OUTPUT/4.2_DATA/";
+  string path = "../OUTPUT/4.2_DATA_BIS/";
   System SYS;
   SYS.initialize(false);
   SYS.initialize_properties(path);
@@ -90,7 +90,7 @@ int main (int argc, char *argv[]){
   //SYS.write_XYZ(1); visualize fcc in half of the box
 
   // first histogram
-  SYS.step();
+  //SYS.step();
   SYS.measure();
   SYS.averages(1, path);
   SYS.block_reset(1);
@@ -98,6 +98,8 @@ int main (int argc, char *argv[]){
   for(int i = 1; i < SYS.get_nbl(); i++){
     
     print_progress_bar((float)(i + 1) / SYS.get_nbl() * 100.0);
+
+    //int steps = (i == SYS.get_nbl() - 1) ? 20 : SYS.get_nsteps(); // Controlla se è l'ultimo blocco
 
     for(int j = 0; j < SYS.get_nsteps(); j++){ 
       SYS.step();
@@ -118,7 +120,7 @@ int main (int argc, char *argv[]){
 
     /*
     parameters used:
-    NBLOCKS                10
+    NBLOCKS                20
     NSTEPS                 20000
     INIT_DELTA             1
 
@@ -135,32 +137,35 @@ int main (int argc, char *argv[]){
     SYS.block_reset(0);
     int total_blocks = SYS.get_nbl();
 
-    SYS.step();
     SYS.measure();
     SYS.averages(1, path);
     SYS.block_reset(1);
  
     cout << "forward simulation" << endl;
 
-    for(int i = 1; i < SYS.get_nbl(); i++){
-    
-      print_progress_bar((float)(i + 1) / SYS.get_nbl() * 100.0);
+    int it = 0;
 
-    for(int j = 0; j < SYS.get_nsteps(); j++){ 
-      SYS.step();
-      SYS.measure();
-    }
+    for(int i = 1; i < SYS.get_nbl(); i++){
+      for(int j = 0; j < SYS.get_nsteps(); j++){ 
+        SYS.step();
+        SYS.measure();
+        it++;
+        print_progress_bar((float)(it) / (SYS.get_nbl() * SYS.get_nsteps()) * 100.0);
+      }
     SYS.averages(i + 1, path);
     SYS.block_reset(i + 1);
   }
    
   // backward simulation
 
-  SYS.invert_velocities();
-  SYS.reset_properties(); 
+  SYS.reverse_time();
+  //SYS.reset_properties(); 
   SYS.block_reset(0);
 
   cout << "\nbackward simulation" << endl;
+
+  it = 0;
+
   for(int i = SYS.get_nbl() + 1; i <= 2*SYS.get_nbl(); i++){
     
     print_progress_bar((float)(i - SYS.get_nbl()) / SYS.get_nbl() * 100.0);
@@ -168,6 +173,8 @@ int main (int argc, char *argv[]){
     for(int j = 0; j < SYS.get_nsteps(); j++){ 
       SYS.step();
       SYS.measure();
+      it++;
+      print_progress_bar((float)(it) / (SYS.get_nbl() * SYS.get_nsteps()) * 100.0);
     }
     SYS.averages(i + 1, path);
     SYS.block_reset(i + 1);
